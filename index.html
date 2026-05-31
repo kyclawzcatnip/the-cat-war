@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="The Cat War - A 2D top-down medieval RTS game where rival cat kingdoms battle for supremacy.">
+    <title>The Cat War — Kingdoms of Fur & Steel</title>
+    <link rel="stylesheet" href="css/style.css">
+    <!-- Google Font for medieval fantasy feel -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=MedievalSharp&family=Cinzel:wght@400;700;900&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Main game canvas — fills the entire viewport -->
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- Loading overlay — shown while scripts initialize -->
+    <div id="loadingScreen">
+        <div class="loading-content">
+            <div class="loading-title">⚔️ THE CAT WAR ⚔️</div>
+            <div class="loading-subtitle">Kingdoms of Fur & Steel</div>
+            <div class="loading-bar-container">
+                <div class="loading-bar" id="loadingBar"></div>
+            </div>
+            <div class="loading-text" id="loadingText">Summoning the cat armies...</div>
+        </div>
+    </div>
+
+    <!-- Scripts loaded in dependency order -->
+    <!-- 1. Core systems (no dependencies) -->
+    <script src="js/config.js"></script>
+    <script src="js/audio.js"></script>
+
+    <!-- 2. Engine systems (depend on config) -->
+    <script src="js/pathfinding.js"></script>
+    <script src="js/map.js"></script>
+    <script src="js/camera.js"></script>
+    <script src="js/input.js"></script>
+    <script src="js/particles.js"></script>
+
+    <!-- 3. Content systems (depend on config + engine) -->
+    <script src="js/factions.js"></script>
+    <script src="js/sprites.js"></script>
+    <script src="js/entities.js"></script>
+    <script src="js/resources.js"></script>
+    <script src="js/units.js"></script>
+    <script src="js/buildings.js"></script>
+    <script src="js/combat.js"></script>
+
+    <!-- 4. High-level systems (depend on everything above) -->
+    <script src="js/ai.js"></script>
+    <script src="js/renderer.js"></script>
+    <script src="js/ui.js"></script>
+
+    <!-- 5. Main game loop (depends on all systems) -->
+    <script src="js/game.js"></script>
+
+    <!-- Boot script -->
+    <script>
+        (function () {
+            'use strict';
+
+            const canvas = document.getElementById('gameCanvas');
+            const loadingScreen = document.getElementById('loadingScreen');
+            const loadingBar = document.getElementById('loadingBar');
+            const loadingText = document.getElementById('loadingText');
+
+            // Resize canvas to fill viewport
+            function resizeCanvas() {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+                if (CatWar.Camera) {
+                    CatWar.Camera.resize(canvas.width, canvas.height);
+                }
+            }
+
+            window.addEventListener('resize', resizeCanvas);
+            resizeCanvas();
+
+            // Loading progress simulation
+            const loadingMessages = [
+                'Summoning the cat armies...',
+                'Sharpening tiny swords...',
+                'Polishing cat armor...',
+                'Training battle lynxes...',
+                'Brewing catnip potions...',
+                'Raising faction banners...',
+                'Scouting the kingdom...',
+                'Ready for war!'
+            ];
+
+            let loadProgress = 0;
+
+            function updateLoading() {
+                loadProgress += Math.random() * 15 + 5;
+                if (loadProgress > 100) loadProgress = 100;
+
+                loadingBar.style.width = loadProgress + '%';
+                const msgIndex = Math.min(
+                    Math.floor((loadProgress / 100) * loadingMessages.length),
+                    loadingMessages.length - 1
+                );
+                loadingText.textContent = loadingMessages[msgIndex];
+
+                if (loadProgress >= 100) {
+                    // All loaded — initialize and start game
+                    setTimeout(function () {
+                        loadingScreen.classList.add('fade-out');
+                        setTimeout(function () {
+                            loadingScreen.style.display = 'none';
+                        }, 600);
+
+                        // Initialize the game
+                        if (CatWar.Game && CatWar.Game.boot) {
+                            CatWar.Game.boot(canvas);
+                        } else if (CatWar.Game && CatWar.Game.init) {
+                            CatWar.Game.init(canvas);
+                        } else {
+                            console.error('CatWar.Game not found! Check script loading.');
+                        }
+                    }, 400);
+                } else {
+                    setTimeout(updateLoading, 150 + Math.random() * 200);
+                }
+            }
+
+            // Start loading sequence after a brief delay
+            setTimeout(updateLoading, 300);
+
+            // Prevent right-click context menu on canvas
+            canvas.addEventListener('contextmenu', function (e) {
+                e.preventDefault();
+            });
+
+            // Prevent default browser scrolling
+            window.addEventListener('wheel', function (e) {
+                if (e.target === canvas) {
+                    e.preventDefault();
+                }
+            }, { passive: false });
+
+            // Prevent text selection during drag
+            canvas.addEventListener('selectstart', function (e) {
+                e.preventDefault();
+            });
+        })();
+    </script>
+</body>
+</html>
