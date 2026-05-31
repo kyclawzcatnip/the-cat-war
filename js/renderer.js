@@ -167,20 +167,26 @@ CatWar.Renderer = (function () {
     // ── 1. Terrain ──────────────────────────────────────────────
 
     function _renderTerrain(map, range, ts, cfg) {
+        const frame = Math.floor(Date.now() * 0.006); // for wave ripples animation
         for (let ty = range.startRow; ty <= range.endRow; ty++) {
             for (let tx = range.startCol; tx <= range.endCol; tx++) {
                 const tileId  = map.grid[ty][tx];
                 const tKey    = cfg.TERRAIN_BY_ID[tileId];
-                const terrain = cfg.TERRAIN[tKey];
-                if (!terrain) continue;
+                if (!tKey) continue;
 
-                ctx.fillStyle = terrain.color;
-                ctx.fillRect(tx * ts, ty * ts, ts, ts);
+                if (CatWar.Sprites && CatWar.Sprites.drawTile) {
+                    CatWar.Sprites.drawTile(ctx, tx * ts, ty * ts, tKey, tx + ty, frame);
+                } else {
+                    const terrain = cfg.TERRAIN[tKey];
+                    if (!terrain) continue;
+                    ctx.fillStyle = terrain.color;
+                    ctx.fillRect(tx * ts, ty * ts, ts, ts);
 
-                // Subtle grid lines
-                ctx.strokeStyle = 'rgba(0,0,0,0.08)';
-                ctx.lineWidth = 0.5;
-                ctx.strokeRect(tx * ts, ty * ts, ts, ts);
+                    // Subtle grid lines
+                    ctx.strokeStyle = 'rgba(0,0,0,0.08)';
+                    ctx.lineWidth = 0.5;
+                    ctx.strokeRect(tx * ts, ty * ts, ts, ts);
+                }
             }
         }
     }
@@ -245,6 +251,8 @@ CatWar.Renderer = (function () {
         const STONE_ID  = cfg.TERRAIN.STONE_DEPOSIT.id;
         const FOREST_ID = cfg.TERRAIN.FOREST.id;
 
+        const frame = Math.floor(Date.now() * 0.005);
+
         for (let ty = range.startRow; ty <= range.endRow; ty++) {
             for (let tx = range.startCol; tx <= range.endCol; tx++) {
                 const tileId = map.grid[ty][tx];
@@ -252,12 +260,29 @@ CatWar.Renderer = (function () {
                 const wx = tx * ts;
                 const wy = ty * ts;
 
-                if (tileId === FOREST_ID) {
-                    _drawTree(wx, wy, ts, rd);
-                } else if (tileId === GOLD_ID) {
-                    _drawGoldDeposit(wx, wy, ts, rd);
-                } else if (tileId === STONE_ID) {
-                    _drawStoneDeposit(wx, wy, ts, rd);
+                if (tileId !== GOLD_ID && tileId !== STONE_ID && tileId !== FOREST_ID) continue;
+
+                if (CatWar.Sprites && CatWar.Sprites.drawResourceNode) {
+                    const typeKey = tileId === GOLD_ID ? 'GOLD' : (tileId === STONE_ID ? 'STONE' : 'WOOD');
+                    const remaining = rd ? (rd.amount / rd.maxAmount) : 1.0;
+                    const richness = rd ? rd.richness : 1.0;
+                    CatWar.Sprites.drawResourceNode(
+                        ctx,
+                        wx + ts / 2,
+                        wy + ts / 2,
+                        typeKey,
+                        remaining,
+                        frame,
+                        richness
+                    );
+                } else {
+                    if (tileId === FOREST_ID) {
+                        _drawTree(wx, wy, ts, rd);
+                    } else if (tileId === GOLD_ID) {
+                        _drawGoldDeposit(wx, wy, ts, rd);
+                    } else if (tileId === STONE_ID) {
+                        _drawStoneDeposit(wx, wy, ts, rd);
+                    }
                 }
             }
         }
@@ -418,28 +443,41 @@ CatWar.Renderer = (function () {
             const primary   = faction ? faction.primary   : '#888';
             const secondary = faction ? faction.secondary : '#444';
 
-            // Main building body
-            ctx.fillStyle = primary;
-            ctx.fillRect(b.x + 2, b.y + 2, b.width - 4, b.height - 4);
+            if (CatWar.Sprites && CatWar.Sprites.drawBuilding) {
+                // Procedural sprite drawer from sprites.js
+                CatWar.Sprites.drawBuilding(
+                    ctx,
+                    b.x + b.width / 2,
+                    b.y + b.height / 2,
+                    b.buildingType,
+                    b.faction,
+                    b.constructionProgress,
+                    1.0
+                );
+            } else {
+                // Main building body
+                ctx.fillStyle = primary;
+                ctx.fillRect(b.x + 2, b.y + 2, b.width - 4, b.height - 4);
 
-            // Roof / accent
-            ctx.fillStyle = secondary;
-            ctx.fillRect(b.x + 2, b.y + 2, b.width - 4, 6);
+                // Roof / accent
+                ctx.fillStyle = secondary;
+                ctx.fillRect(b.x + 2, b.y + 2, b.width - 4, 6);
 
-            // Door
-            ctx.fillStyle = '#3a2a1a';
-            const doorW = Math.min(8, b.width / 4);
-            const doorH = Math.min(12, b.height / 3);
-            ctx.fillRect(
-                b.x + b.width / 2 - doorW / 2,
-                b.y + b.height - doorH - 2,
-                doorW, doorH
-            );
+                // Door
+                ctx.fillStyle = '#3a2a1a';
+                const doorW = Math.min(8, b.width / 4);
+                const doorH = Math.min(12, b.height / 3);
+                ctx.fillRect(
+                    b.x + b.width / 2 - doorW / 2,
+                    b.y + b.height - doorH - 2,
+                    doorW, doorH
+                );
 
-            // Border
-            ctx.strokeStyle = secondary;
-            ctx.lineWidth = 1.5;
-            ctx.strokeRect(b.x + 1, b.y + 1, b.width - 2, b.height - 2);
+                // Border
+                ctx.strokeStyle = secondary;
+                ctx.lineWidth = 1.5;
+                ctx.strokeRect(b.x + 1, b.y + 1, b.width - 2, b.height - 2);
+            }
 
             // Construction progress bar (if under construction)
             if (b.constructionProgress !== undefined && b.constructionProgress < 1.0) {
@@ -527,63 +565,79 @@ CatWar.Renderer = (function () {
             const primary   = faction ? faction.primary   : '#888';
             const secondary = faction ? faction.secondary : '#444';
 
-            ctx.save();
-            ctx.translate(u.x, u.y);
+            if (CatWar.Sprites && CatWar.Sprites.drawCat) {
+                const dir = u.facingAngle !== undefined ? (Math.cos(u.facingAngle) >= 0 ? 1 : -1) : 1;
+                CatWar.Sprites.drawCat(
+                    ctx,
+                    u.x,
+                    u.y,
+                    u.type,
+                    u.faction,
+                    dir,
+                    u.animFrame || 0,
+                    1.0,
+                    u.id,
+                    u.state || 'IDLE'
+                );
+            } else {
+                ctx.save();
+                ctx.translate(u.x, u.y);
 
-            // Body (circle/capsule shape)
-            ctx.fillStyle = primary;
-            ctx.beginPath();
-            ctx.arc(0, 0, 7, 0, Math.PI * 2);
-            ctx.fill();
+                // Body (circle/capsule shape)
+                ctx.fillStyle = primary;
+                ctx.beginPath();
+                ctx.arc(0, 0, 7, 0, Math.PI * 2);
+                ctx.fill();
 
-            // Faction accent ring
-            ctx.strokeStyle = secondary;
-            ctx.lineWidth = 1.5;
-            ctx.stroke();
+                // Faction accent ring
+                ctx.strokeStyle = secondary;
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
 
-            // Head (small circle on top)
-            ctx.fillStyle = _lightenColor(primary, 30);
-            ctx.beginPath();
-            ctx.arc(0, -5, 4, 0, Math.PI * 2);
-            ctx.fill();
+                // Head (small circle on top)
+                ctx.fillStyle = _lightenColor(primary, 30);
+                ctx.beginPath();
+                ctx.arc(0, -5, 4, 0, Math.PI * 2);
+                ctx.fill();
 
-            // Cat ears!
-            ctx.fillStyle = primary;
-            ctx.beginPath();
-            ctx.moveTo(-5, -7);
-            ctx.lineTo(-3, -12);
-            ctx.lineTo(-1, -7);
-            ctx.fill();
-            ctx.beginPath();
-            ctx.moveTo(1, -7);
-            ctx.lineTo(3, -12);
-            ctx.lineTo(5, -7);
-            ctx.fill();
+                // Cat ears!
+                ctx.fillStyle = primary;
+                ctx.beginPath();
+                ctx.moveTo(-5, -7);
+                ctx.lineTo(-3, -12);
+                ctx.lineTo(-1, -7);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.moveTo(1, -7);
+                ctx.lineTo(3, -12);
+                ctx.lineTo(5, -7);
+                ctx.fill();
 
-            // Inner ears
-            ctx.fillStyle = '#ffb6c1';
-            ctx.beginPath();
-            ctx.moveTo(-4, -7);
-            ctx.lineTo(-3, -10);
-            ctx.lineTo(-2, -7);
-            ctx.fill();
-            ctx.beginPath();
-            ctx.moveTo(2, -7);
-            ctx.lineTo(3, -10);
-            ctx.lineTo(4, -7);
-            ctx.fill();
+                // Inner ears
+                ctx.fillStyle = '#ffb6c1';
+                ctx.beginPath();
+                ctx.moveTo(-4, -7);
+                ctx.lineTo(-3, -10);
+                ctx.lineTo(-2, -7);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.moveTo(2, -7);
+                ctx.lineTo(3, -10);
+                ctx.lineTo(4, -7);
+                ctx.fill();
 
-            // Eyes
-            ctx.fillStyle = '#000';
-            ctx.beginPath();
-            ctx.arc(-2, -5, 1, 0, Math.PI * 2);
-            ctx.arc(2, -5, 1, 0, Math.PI * 2);
-            ctx.fill();
+                // Eyes
+                ctx.fillStyle = '#000';
+                ctx.beginPath();
+                ctx.arc(-2, -5, 1, 0, Math.PI * 2);
+                ctx.arc(2, -5, 1, 0, Math.PI * 2);
+                ctx.fill();
 
-            // Weapon indicator based on unit type
-            _drawUnitWeapon(u, secondary);
+                // Weapon indicator based on unit type
+                _drawUnitWeapon(u, secondary);
 
-            ctx.restore();
+                ctx.restore();
+            }
         }
     }
 

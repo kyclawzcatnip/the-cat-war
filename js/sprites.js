@@ -22,6 +22,14 @@ CatWar.Sprites = (function () {
 
   // Faction colour sets — every faction has primary, secondary, accent, trim
   var FACTION_COLORS = {
+    // Game faction IDs mapped to custom premium colors
+    LION:       { primary: '#DAA520', secondary: '#8B0000', accent: '#8B0000', trim: '#FFD700', banner: '#DAA520' },
+    SIAMESE:    { primary: '#4682B4', secondary: '#C0C0C0', accent: '#708090', trim: '#F0F8FF', banner: '#4682B4' },
+    MAINE_COON: { primary: '#2E8B57', secondary: '#8B4513', accent: '#556B2F', trim: '#8FBC8F', banner: '#2E8B57' },
+    BLACK_CAT:  { primary: '#6A0DAD', secondary: '#1C1C1C', accent: '#4B0082', trim: '#E6E6FA', banner: '#6A0DAD' },
+    PERSIAN:    { primary: '#FFFFF0', secondary: '#FFD700', accent: '#CD853F', trim: '#FFF8DC', banner: '#FFD700' },
+
+    // Fallbacks
     0: { primary: '#3b7dd8', secondary: '#5a9cf0', accent: '#1b4f8a', trim: '#c0d8f8', banner: '#2a6abf' },  // Blue
     1: { primary: '#d83b3b', secondary: '#f05a5a', accent: '#8a1b1b', trim: '#f8c0c0', banner: '#bf2a2a' },  // Red
     2: { primary: '#3bd84a', secondary: '#5af06a', accent: '#1b8a2a', trim: '#c0f8c8', banner: '#2abf3a' },  // Green
