@@ -1504,10 +1504,24 @@ CatWar.Renderer = (function () {
                     const workers = inp.selectedUnits.filter(u => u.alive && u.faction === CatWar.Game.playerFaction && (u.type === 'PEASANT' || u.type === 'HEAD_MINER'));
                     for (const w of workers) {
                         w.minePreference = btn.pref;
-                        if (btn.pref !== 'auto' && w.state === 'GATHERING') {
-                            w.gatherTarget = null;
-                            w.path = null;
-                            w.state = 'IDLE';
+                        
+                        // Reset target and path if they don't match the new preference
+                        if (btn.pref !== 'auto') {
+                            let matches = false;
+                            if (w.gatherTarget) {
+                                const map = CatWar.Map;
+                                const rd = map ? map.getResourceData(w.gatherTarget.tx, w.gatherTarget.ty) : null;
+                                if (rd && rd.resource === btn.pref) {
+                                    matches = true;
+                                }
+                            }
+                            if (!matches) {
+                                w.gatherTarget = null;
+                                w.path = null;
+                                if (w.state !== 'RETURNING') {
+                                    w.state = 'IDLE';
+                                }
+                            }
                         }
                     }
                     if (CatWar.Audio) {

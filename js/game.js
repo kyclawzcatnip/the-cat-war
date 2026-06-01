@@ -929,6 +929,15 @@ CatWar.Game = (function () {
 
             // Go back to gathering
             if (u.gatherTarget) {
+                if (u.minePreference && u.minePreference !== 'auto') {
+                    const rd = map.getResourceData(u.gatherTarget.tx, u.gatherTarget.ty);
+                    if (!rd || rd.resource !== u.minePreference) {
+                        u.gatherTarget = null;
+                    }
+                }
+            }
+
+            if (u.gatherTarget) {
                 u.state = 'GATHERING';
             } else {
                 u.state = 'IDLE';
