@@ -924,6 +924,32 @@ CatWar.Game = (function () {
                 }
             }
 
+            // Auto-train: every 30 seconds, queue a unit automatically
+            const bCfgTrain = cfg.BUILDINGS[b.buildingType];
+            if (bCfgTrain && bCfgTrain.trains && bCfgTrain.trains.length > 0 &&
+                b.constructionProgress >= 1.0 &&
+                (!b.trainingQueue || b.trainingQueue.length === 0)) {
+
+                b.autoTrainTimer = (b.autoTrainTimer || 0) + dt;
+                if (b.autoTrainTimer >= 30) {
+                    b.autoTrainTimer = 0;
+
+                    // Pick a random trainable unit
+                    const trainList = bCfgTrain.trains;
+                    const pick = trainList[Math.floor(Math.random() * trainList.length)];
+                    const uCfgPick = cfg.UNITS[pick];
+
+                    if (uCfgPick) {
+                        const res = factionResources[b.faction];
+                        if (_canAfford(res, uCfgPick.cost)) {
+                            _deductCost(res, uCfgPick.cost);
+                            if (!b.trainingQueue) b.trainingQueue = [];
+                            b.trainingQueue.push(pick);
+                        }
+                    }
+                }
+            }
+
             // Farm food production
             const bCfg = cfg.BUILDINGS[b.buildingType];
             if (bCfg && bCfg.foodPerMin && b.constructionProgress >= 1.0) {
