@@ -262,7 +262,7 @@ CatWar.Config = (function () {
             trains:     [],
             foodPerMin: 10,
             visionRange: 4,
-            popProvided: 5,
+            popProvided: 20,
             description: 'Produces food and increases population cap'
         },
         LUMBER_MILL: {
