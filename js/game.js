@@ -1274,6 +1274,8 @@ CatWar.Game = (function () {
         }
 
         const ts = cfg.TILE_SIZE;
+        const tileX = Math.floor(worldX / ts);
+        const tileY = Math.floor(worldY / ts);
         const building = {
             id:              _uid(),
             isBuilding:      true,

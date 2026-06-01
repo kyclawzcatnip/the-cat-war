@@ -116,6 +116,7 @@ CatWar.Map = (function () {
         fogGrids     = {};
         resourceData = [];
         decorations  = [];
+        buildingGrid = null;
 
         for (let y = 0; y < H; y++) {
             grid[y]         = new Uint8Array(W);
