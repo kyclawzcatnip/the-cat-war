@@ -1049,16 +1049,25 @@ CatWar.Game = (function () {
                 const isWorker = u.type === 'HEAD_MINER' || u.type === 'PEASANT';
 
                 if (isWorker) {
-                    // Auto-gather: find nearest resource
+                    // Auto-gather: find nearest resource NEAR OWN BASE
+                    // Find this faction's castle
+                    const castle = factionBuildings.find(b => b.buildingType === 'CASTLE_KEEP');
+                    const castleTile = castle ? map.worldToTile(castle.x + castle.width / 2, castle.y + castle.height / 2) : null;
+                    const maxDistFromCastle = 15; // tiles — don't wander far from home
+
                     let bestDist = Infinity;
                     let bestTX = -1, bestTY = -1;
                     const uTile = map.worldToTile(u.x, u.y);
 
-                    for (let dy = -12; dy <= 12; dy++) {
-                        for (let dx = -12; dx <= 12; dx++) {
+                    for (let dy = -6; dy <= 6; dy++) {
+                        for (let dx = -6; dx <= 6; dx++) {
                             const rx = uTile.tx + dx;
                             const ry = uTile.ty + dy;
                             if (rx < 0 || ry < 0 || rx >= cfg.MAP_WIDTH || ry >= cfg.MAP_HEIGHT) continue;
+
+                            // Must be near own castle
+                            if (castleTile && Math.hypot(rx - castleTile.tx, ry - castleTile.ty) > maxDistFromCastle) continue;
+
                             const rd = map.getResourceData(rx, ry);
                             if (rd && rd.amount > 0) {
                                 const dist = Math.hypot(dx, dy);
