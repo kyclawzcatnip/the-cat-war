@@ -456,18 +456,7 @@ CatWar.Renderer = (function () {
             const primary   = faction ? faction.primary   : '#888';
             const secondary = faction ? faction.secondary : '#444';
 
-            if (CatWar.Sprites && CatWar.Sprites.drawBuilding) {
-                // Procedural sprite drawer from sprites.js
-                CatWar.Sprites.drawBuilding(
-                    ctx,
-                    b.x + b.width / 2,
-                    b.y + b.height / 2,
-                    b.buildingType,
-                    b.faction,
-                    b.constructionProgress,
-                    1.0
-                );
-            } else if (b.buildingType === 'WALL' || b.buildingType === 'GATE') {
+            if (b.buildingType === 'WALL' || b.buildingType === 'GATE') {
                 // ── Wall / Gate rendering ──
                 const bCfgW = cfg.BUILDINGS[b.buildingType];
                 const isGate = b.buildingType === 'GATE';
@@ -527,6 +516,18 @@ CatWar.Renderer = (function () {
                 ctx.fillStyle = primary + '33';
                 ctx.fillRect(b.x + 1, b.y + 1, b.width - 2, b.height - 2);
 
+
+            } else if (CatWar.Sprites && CatWar.Sprites.drawBuilding) {
+                // Procedural sprite drawer from sprites.js
+                CatWar.Sprites.drawBuilding(
+                    ctx,
+                    b.x + b.width / 2,
+                    b.y + b.height / 2,
+                    b.buildingType,
+                    b.faction,
+                    b.constructionProgress,
+                    1.0
+                );
             } else {
                 // Main building body
                 ctx.fillStyle = primary;
