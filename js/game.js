@@ -420,6 +420,8 @@ CatWar.Game = (function () {
                     if (u.type !== 'PEASANT' && u.type !== 'HEAD_MINER') continue;
                     u.gatherTarget = cmd.target;
                     u.state = 'GATHERING';
+                    u.path  = null;
+                    u.target = null;
                 }
                 break;
             }
@@ -1362,7 +1364,8 @@ CatWar.Game = (function () {
      * Get the top-most entity at a world point.
      * Units checked first (sorted by Y descending so front units picked first).
      */
-    function getEntitiesAtPoint(wx, wy) {
+    function getEntitiesAtPoint(wx, wy, opts) {
+        opts = opts || {};
         const cfg = CFG();
         const ts  = cfg.TILE_SIZE;
 
@@ -1370,6 +1373,7 @@ CatWar.Game = (function () {
         const sortedUnits = units.slice().sort((a, b) => b.y - a.y);
         for (const u of sortedUnits) {
             if (!u.alive) continue;
+            if (opts.ignoreFriendlyUnits && u.faction === playerFaction) continue;
             const dx = wx - u.x;
             const dy = wy - u.y;
             if (Math.abs(dx) < 16 && Math.abs(dy) < 16) {

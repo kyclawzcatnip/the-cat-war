@@ -351,7 +351,13 @@ CatWar.Input = (function () {
         console.log('[INPUT] Right-click with', selectedUnits.length, 'selected units at screen', screenX, screenY);
 
         const w = CatWar.Camera.screenToWorld(screenX, screenY);
-        const target = game.getEntitiesAtPoint(w.x, w.y);
+        let target = game.getEntitiesAtPoint(w.x, w.y);
+
+        // If target is a friendly unit, look "through" it for resources or enemies
+        if (target && !target.isBuilding && !target.isResource && target.faction === game.playerFaction) {
+            const alt = game.getEntitiesAtPoint(w.x, w.y, { ignoreFriendlyUnits: true });
+            if (alt) target = alt;
+        }
 
         if (target && target.faction !== game.playerFaction) {
             // Right-click on enemy → attack
