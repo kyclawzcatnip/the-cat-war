@@ -926,11 +926,10 @@ CatWar.Game = (function () {
                 }
             }
 
-            // Auto-train: every 30 seconds, queue a unit automatically
+            // Auto-train: every 30 seconds, spawn a unit automatically (instantly and for free!)
             const bCfgTrain = cfg.BUILDINGS[b.buildingType];
             if (bCfgTrain && bCfgTrain.trains && bCfgTrain.trains.length > 0 &&
-                b.constructionProgress >= 1.0 &&
-                (!b.trainingQueue || b.trainingQueue.length === 0)) {
+                b.constructionProgress >= 1.0) {
 
                 b.autoTrainTimer = (b.autoTrainTimer || 0) + dt;
                 if (b.autoTrainTimer >= 30) {
@@ -942,11 +941,28 @@ CatWar.Game = (function () {
                     const uCfgPick = cfg.UNITS[pick];
 
                     if (uCfgPick) {
-                        const res = factionResources[b.faction];
-                        if (_canAfford(res, uCfgPick.cost)) {
-                            _deductCost(res, uCfgPick.cost);
-                            if (!b.trainingQueue) b.trainingQueue = [];
-                            b.trainingQueue.push(pick);
+                        const spawnX = b.x + b.width / 2;
+                        const spawnY = b.y + b.height + 8;
+                        const newlyTrained = _createUnit(pick, b.faction, spawnX, spawnY);
+
+                        // Siamese scout speed bonus (+20%)
+                        if (newlyTrained && pick === 'SCOUT' && b.faction === 'SIAMESE') {
+                            newlyTrained.speed *= 1.2;
+                        }
+
+                        // If rally point, auto-move
+                        if (newlyTrained && b.rallyX !== undefined) {
+                            const map = CatWar.Map;
+                            if (map) {
+                                const uTile = map.worldToTile(newlyTrained.x, newlyTrained.y);
+                                const rTile = map.worldToTile(b.rallyX, b.rallyY);
+                                newlyTrained.path = CatWar.Pathfinding.findPath(
+                                    uTile.tx, uTile.ty, rTile.tx, rTile.ty,
+                                    { ignoreThrottle: true, factionId: newlyTrained.faction }
+                                );
+                                newlyTrained.pathIndex = 0;
+                                newlyTrained.state = 'MOVING';
+                            }
                         }
                     }
                 }
