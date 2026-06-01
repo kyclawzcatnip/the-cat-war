@@ -170,7 +170,7 @@ CatWar.Game = (function () {
                 }
             }
 
-            // Auto-assign miners to nearest resource nodes
+            // Auto-assign miners to nearest resource nodes (strictly within 12 tiles of spawn)
             const map = CatWar.Map;
             if (map && startMiners.length > 0) {
                 const usedTiles = new Set();
@@ -178,8 +178,9 @@ CatWar.Game = (function () {
                     let bestDist = Infinity;
                     let bestTX = -1, bestTY = -1;
                     // Search nearby tiles for resources
-                    for (let dy = -10; dy <= 10; dy++) {
-                        for (let dx = -10; dx <= 10; dx++) {
+                    for (let dy = -12; dy <= 12; dy++) {
+                        for (let dx = -12; dx <= 12; dx++) {
+                            if (Math.hypot(dx, dy) > 12) continue;
                             const rx = sp.tx + dx;
                             const ry = sp.ty + dy;
                             const tileKey = rx + ',' + ry;
@@ -1093,7 +1094,7 @@ CatWar.Game = (function () {
         if (!map) return;
 
         for (const fk of activeFactions) {
-            if (fk === playerFaction) continue; // skip player
+            const isPlayer = (fk === playerFaction);
 
             const factionUnits = units.filter(u => u.alive && u.faction === fk);
             const factionBuildings = buildings.filter(b => b.hp > 0 && b.faction === fk);
@@ -1104,32 +1105,31 @@ CatWar.Game = (function () {
                 const isWorker = u.type === 'HEAD_MINER' || u.type === 'PEASANT';
 
                 if (isWorker) {
-                    // Auto-gather: find nearest resource NEAR OWN BASE
-                    // Find this faction's castle
+                    // Auto-gather: find nearest resource within 12 tiles of Castle Keep
                     const castle = factionBuildings.find(b => b.buildingType === 'CASTLE_KEEP');
                     const castleTile = castle ? map.worldToTile(castle.x + castle.width / 2, castle.y + castle.height / 2) : null;
-                    const maxDistFromCastle = 15; // tiles — don't wander far from home
+                    const maxDistFromCastle = 12; // strictly 12 tiles!
 
                     let bestDist = Infinity;
                     let bestTX = -1, bestTY = -1;
                     const uTile = map.worldToTile(u.x, u.y);
 
-                    for (let dy = -6; dy <= 6; dy++) {
-                        for (let dx = -6; dx <= 6; dx++) {
-                            const rx = uTile.tx + dx;
-                            const ry = uTile.ty + dy;
-                            if (rx < 0 || ry < 0 || rx >= cfg.MAP_WIDTH || ry >= cfg.MAP_HEIGHT) continue;
+                    if (castleTile) {
+                        for (let dy = -12; dy <= 12; dy++) {
+                            for (let dx = -12; dx <= 12; dx++) {
+                                if (Math.hypot(dx, dy) > maxDistFromCastle) continue;
+                                const rx = castleTile.tx + dx;
+                                const ry = castleTile.ty + dy;
+                                if (rx < 0 || ry < 0 || rx >= cfg.MAP_WIDTH || ry >= cfg.MAP_HEIGHT) continue;
 
-                            // Must be near own castle
-                            if (castleTile && Math.hypot(rx - castleTile.tx, ry - castleTile.ty) > maxDistFromCastle) continue;
-
-                            const rd = map.getResourceData(rx, ry);
-                            if (rd && rd.amount > 0) {
-                                const dist = Math.hypot(dx, dy);
-                                if (dist < bestDist) {
-                                    bestDist = dist;
-                                    bestTX = rx;
-                                    bestTY = ry;
+                                const rd = map.getResourceData(rx, ry);
+                                if (rd && rd.amount > 0) {
+                                    const dist = Math.hypot(rx - uTile.tx, ry - uTile.ty);
+                                    if (dist < bestDist) {
+                                        bestDist = dist;
+                                        bestTX = rx;
+                                        bestTY = ry;
+                                    }
                                 }
                             }
                         }
@@ -1146,6 +1146,8 @@ CatWar.Game = (function () {
                         u.state = 'GATHERING';
                     }
                 } else {
+                    if (isPlayer) continue; // skip player military units
+
                     // Military unit: look for nearby enemies to attack
                     let closestEnemy = null;
                     let closestDist = cfg.COMBAT.AGGRO_RANGE * ts * 3; // wider scan range
@@ -1188,6 +1190,8 @@ CatWar.Game = (function () {
                     }
                 }
             }
+
+            if (isPlayer) continue; // skip player buildings & training
 
             // AI building: auto-train units from buildings with training capabilities
             const res = factionResources[fk];
