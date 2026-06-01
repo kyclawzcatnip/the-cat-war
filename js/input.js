@@ -252,9 +252,17 @@ CatWar.Input = (function () {
     // ═══════════════════════════════════════════════════════════════
 
     function _handleLeftClick(shiftHeld) {
-        // Check training panel first
+        // Check scout popup first
+        if (CatWar.Renderer && CatWar.Renderer.scoutPopupHandleClick &&
+            CatWar.Renderer.scoutPopupHandleClick(screenX, screenY)) return;
+
+        // Check training panel next
         if (CatWar.Renderer && CatWar.Renderer.trainPanelHandleClick &&
             CatWar.Renderer.trainPanelHandleClick(screenX, screenY)) return;
+
+        // Check miner panel
+        if (CatWar.Renderer && CatWar.Renderer.minerPanelHandleClick &&
+            CatWar.Renderer.minerPanelHandleClick(screenX, screenY)) return;
 
         // Check hotbar
         if (CatWar.Renderer && CatWar.Renderer.hotbarHandleClick &&
@@ -335,11 +343,21 @@ CatWar.Input = (function () {
     }
 
     function _handleRightClick() {
-        // Don't issue commands when clicking over the hotbar
-        if (CatWar.Renderer && CatWar.Renderer.isOverHotbar &&
-            CatWar.Renderer.isOverHotbar(screenX, screenY)) {
-            console.log('[INPUT] Right-click blocked by hotbar');
-            return;
+        // Don't issue commands when clicking over UI panels or modals
+        if (CatWar.Renderer) {
+            if (CatWar.Renderer.isOverScoutPopup && CatWar.Renderer.isOverScoutPopup(screenX, screenY)) {
+                return;
+            }
+            if (CatWar.Renderer.isOverTrainPanel && CatWar.Renderer.isOverTrainPanel(screenX, screenY)) {
+                return;
+            }
+            if (CatWar.Renderer.isOverMinerPanel && CatWar.Renderer.isOverMinerPanel(screenX, screenY)) {
+                return;
+            }
+            if (CatWar.Renderer.isOverHotbar && CatWar.Renderer.isOverHotbar(screenX, screenY)) {
+                console.log('[INPUT] Right-click blocked by hotbar');
+                return;
+            }
         }
 
         if (selectedUnits.length === 0) {
@@ -572,6 +590,7 @@ CatWar.Input = (function () {
         init,
         update,
         drainCommands,
+        pushCommand: _pushCommand,
 
         // Raw state (read-only from outside)
         get keys()           { return keys; },

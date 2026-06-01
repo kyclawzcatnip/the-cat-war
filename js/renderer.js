@@ -164,6 +164,28 @@ CatWar.Renderer = (function () {
             const inp = CatWar.Input;
             if (inp && inp.selectedBuilding) {
                 _renderTrainingPanel(w, h, inp.selectedBuilding, game);
+            } else {
+                _trainPanel.visible = false;
+                _trainPanel.buttons = [];
+            }
+        }
+
+        // Miner panel (when a miner is selected and no building is selected)
+        if (game && game.state === 'PLAYING') {
+            const inp = CatWar.Input;
+            const workers = inp && inp.selectedUnits ? inp.selectedUnits.filter(u => u.alive && u.faction === game.playerFaction && (u.type === 'PEASANT' || u.type === 'HEAD_MINER')) : [];
+            if (inp && (!inp.selectedBuilding) && workers.length > 0) {
+                _renderMinerPanel(w, h, inp.selectedUnits, game);
+            } else {
+                _minerPanel.visible = false;
+                _minerPanel.buttons = [];
+            }
+        }
+
+        // Scout Enemy Castle Popup
+        if (game && game.state === 'PLAYING') {
+            if (_scoutPopup.visible) {
+                _renderScoutPopup(w, h);
             }
         }
 
@@ -1126,6 +1148,17 @@ CatWar.Renderer = (function () {
         visible: false
     };
 
+    const _minerPanel = {
+        buttons: [],    // { pref, x, y, w, h }
+        visible: false
+    };
+
+    const _scoutPopup = {
+        visible: false,
+        castle: null,
+        buttons: []     // { label, x, y, w, h, callback }
+    };
+
     function _renderTrainingPanel(w, h, building, game) {
         const cfg = CFG();
         const bCfg = cfg.BUILDINGS[building.buildingType];
@@ -1314,6 +1347,337 @@ CatWar.Renderer = (function () {
             }
         }
         return false;
+    }
+
+    function _drawMedievalButton(ctx, x, y, w, h, text, isHovered, isDisabled) {
+        ctx.save();
+        const r = 6;
+        _drawRoundedRect(ctx, x, y, w, h, r);
+
+        if (isDisabled) {
+            ctx.fillStyle = '#444444';
+        } else if (isHovered) {
+            const grad = ctx.createLinearGradient(x, y, x, y + h);
+            grad.addColorStop(0, '#FFE066');
+            grad.addColorStop(1, '#B8860B');
+            ctx.fillStyle = grad;
+        } else {
+            const grad = ctx.createLinearGradient(x, y, x, y + h);
+            grad.addColorStop(0, '#DAA520');
+            grad.addColorStop(1, '#8B6914');
+            ctx.fillStyle = grad;
+        }
+        ctx.fill();
+
+        // Border
+        _drawRoundedRect(ctx, x, y, w, h, r);
+        ctx.strokeStyle = isHovered ? '#FFD700' : '#2C1810';
+        ctx.lineWidth = isHovered ? 2 : 1.5;
+        ctx.stroke();
+
+        // Text
+        ctx.fillStyle = isDisabled ? '#777777' : '#2C1810';
+        ctx.font = 'bold 13px "Palatino Linotype", "Book Antiqua", Palatino, serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(text, x + w / 2, y + h / 2 + 1);
+
+        ctx.restore();
+    }
+
+    function _renderMinerPanel(w, h, units, game) {
+        const workers = units.filter(u => u.alive && u.faction === game.playerFaction && (u.type === 'PEASANT' || u.type === 'HEAD_MINER'));
+        if (workers.length === 0) return;
+
+        _minerPanel.buttons = [];
+        _minerPanel.visible = true;
+        _trainPanel.visible = false;
+
+        const panelH = 90;
+        const panelW = 420;
+        const panelX = (w - panelW) / 2;
+        const panelY = h - panelH - 8;
+
+        // Panel background
+        ctx.save();
+        ctx.fillStyle = 'rgba(15, 10, 5, 0.88)';
+        _drawRoundedRect(ctx, panelX, panelY, panelW, panelH, 8);
+        ctx.fill();
+
+        // Panel border
+        ctx.strokeStyle = '#8B6914';
+        ctx.lineWidth = 2;
+        _drawRoundedRect(ctx, panelX, panelY, panelW, panelH, 8);
+        ctx.stroke();
+        ctx.restore();
+
+        // Miner Title + Stats
+        ctx.save();
+        ctx.font = 'bold 14px "Palatino Linotype", serif';
+        ctx.fillStyle = '#FFD700';
+        ctx.textAlign = 'left';
+
+        const firstWorker = workers[0];
+        const countText = workers.length > 1 ? ` (${workers.length} selected)` : '';
+        const titleStr = firstWorker.type === 'HEAD_MINER' ? '⛏️ Head Miner' : '👷 Peasant';
+        ctx.fillText(titleStr + countText, panelX + 12, panelY + 22);
+
+        // Status text
+        ctx.font = '11px "Palatino Linotype", serif';
+        ctx.fillStyle = '#C8B896';
+        let statusText = 'State: ' + firstWorker.state;
+        if (firstWorker.carrying > 0 && firstWorker.carryResource) {
+            statusText += ` (Carrying ${Math.round(firstWorker.carrying)} ${firstWorker.carryResource})`;
+        }
+        ctx.fillText(statusText, panelX + 12, panelY + 44);
+
+        // Preference text
+        const prefText = 'Mine Target: ' + (firstWorker.minePreference || 'auto').toUpperCase();
+        ctx.fillStyle = '#DAA520';
+        ctx.fillText(prefText, panelX + 12, panelY + 66);
+        ctx.restore();
+
+        // Mine Preference buttons: Auto, Gold, Stone, Wood
+        const prefs = [
+            { id: 'auto',  icon: '🔄', label: 'Auto',  color: '#D4B896' },
+            { id: 'gold',  icon: '🪙', label: 'Gold',  color: '#FFD700' },
+            { id: 'stone', icon: '🪨', label: 'Stone', color: '#aaaaaa' },
+            { id: 'wood',  icon: '🪵', label: 'Wood',  color: '#8B4513' }
+        ];
+
+        const btnSize = 50;
+        const btnPad = 8;
+        const startX = panelX + 175;
+        const btnY = panelY + 20;
+
+        for (let i = 0; i < prefs.length; i++) {
+            const p = prefs[i];
+            const bx = startX + i * (btnSize + btnPad);
+            const by = btnY;
+
+            const isHovered = _isPointInRect(CatWar.Input.screenX, CatWar.Input.screenY, bx, by, btnSize, btnSize);
+            const isSelected = workers.every(w => (w.minePreference || 'auto') === p.id);
+
+            ctx.save();
+
+            // Button bg
+            _drawRoundedRect(ctx, bx, by, btnSize, btnSize, 5);
+            if (isSelected) {
+                ctx.fillStyle = 'rgba(218, 165, 32, 0.4)';
+            } else if (isHovered) {
+                ctx.fillStyle = 'rgba(76, 175, 80, 0.25)';
+            } else {
+                ctx.fillStyle = 'rgba(60, 40, 25, 0.6)';
+            }
+            ctx.fill();
+
+            // Button border
+            _drawRoundedRect(ctx, bx, by, btnSize, btnSize, 5);
+            ctx.strokeStyle = isSelected ? '#FFD700' : (isHovered ? '#DAA520' : 'rgba(139, 105, 20, 0.7)');
+            ctx.lineWidth = (isSelected || isHovered) ? 2 : 1;
+            ctx.stroke();
+
+            // Icon
+            ctx.font = '16px serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(p.icon, bx + btnSize / 2, by + 18);
+
+            // Label
+            ctx.font = 'bold 9px "Palatino Linotype", serif';
+            ctx.fillStyle = p.color;
+            ctx.fillText(p.label, bx + btnSize / 2, by + 36);
+
+            ctx.restore();
+
+            // Register button
+            _minerPanel.buttons.push({ pref: p.id, x: bx, y: by, w: btnSize, h: btnSize });
+        }
+    }
+
+    function minerPanelHandleClick(screenX, screenY) {
+        if (!_minerPanel.visible) return false;
+        for (const btn of _minerPanel.buttons) {
+            if (_isPointInRect(screenX, screenY, btn.x, btn.y, btn.w, btn.h)) {
+                const inp = CatWar.Input;
+                if (inp && inp.selectedUnits.length > 0) {
+                    const workers = inp.selectedUnits.filter(u => u.alive && u.faction === CatWar.Game.playerFaction && (u.type === 'PEASANT' || u.type === 'HEAD_MINER'));
+                    for (const w of workers) {
+                        w.minePreference = btn.pref;
+                        if (btn.pref !== 'auto' && w.state === 'GATHERING') {
+                            w.gatherTarget = null;
+                            w.path = null;
+                            w.state = 'IDLE';
+                        }
+                    }
+                    if (CatWar.Audio) {
+                        CatWar.Audio.playSound('meow');
+                    }
+                    console.log('[UI] Set mine preference to:', btn.pref);
+                }
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function isOverMinerPanel(screenX, screenY) {
+        if (!_minerPanel.visible) return false;
+        for (const btn of _minerPanel.buttons) {
+            if (_isPointInRect(screenX, screenY, btn.x, btn.y, btn.w, btn.h)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function _renderScoutPopup(w, h) {
+        if (!_scoutPopup.visible || !_scoutPopup.castle) return;
+
+        const panelW = 480;
+        const panelH = 180;
+        const panelX = (w - panelW) / 2;
+        const panelY = (h - panelH) / 2 - 40;
+
+        ctx.save();
+
+        // Dark back-overlay
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+        ctx.fillRect(0, 0, w, h);
+
+        // Parchment backing
+        ctx.shadowColor = 'rgba(0,0,0,0.6)';
+        ctx.shadowBlur = 15;
+        _drawRoundedRect(ctx, panelX, panelY, panelW, panelH, 10);
+        const grad = ctx.createLinearGradient(panelX, panelY, panelX, panelY + panelH);
+        grad.addColorStop(0, '#FFF8EE');
+        grad.addColorStop(0.5, '#F5E6C8');
+        grad.addColorStop(1, '#D4B896');
+        ctx.fillStyle = grad;
+        ctx.fill();
+
+        ctx.shadowBlur = 0;
+
+        // Gold border
+        _drawRoundedRect(ctx, panelX, panelY, panelW, panelH, 10);
+        ctx.strokeStyle = '#DAA520';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+
+        // Inner frame
+        _drawRoundedRect(ctx, panelX + 5, panelY + 5, panelW - 10, panelH - 10, 8);
+        ctx.strokeStyle = 'rgba(139, 105, 20, 0.3)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        // Content — Title
+        ctx.fillStyle = '#8B6914';
+        ctx.font = 'bold 18px "Palatino Linotype", serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.fillText('🐾 Scout Intel: Enemy Keep Found!', panelX + panelW / 2, panelY + 18);
+
+        // Content — Subtext
+        ctx.fillStyle = '#2C1810';
+        ctx.font = 'bold italic 13px "Palatino Linotype", serif';
+        const text1 = 'Our Scout Cat has discovered the enemy Castle Keep!';
+        const text2 = 'Should we order all active military forces to attack?';
+        ctx.fillText(text1, panelX + panelW / 2, panelY + 52);
+        ctx.fillText(text2, panelX + panelW / 2, panelY + 72);
+
+        ctx.restore();
+
+        // Buttons
+        _scoutPopup.buttons = [];
+
+        const btnW = 160;
+        const btnH = 38;
+        const btnY = panelY + panelH - 54;
+
+        // Yes Button
+        const yesX = panelX + panelW / 2 - btnW - 15;
+        const isYesHovered = _isPointInRect(CatWar.Input.screenX, CatWar.Input.screenY, yesX, btnY, btnW, btnH);
+        _drawMedievalButton(ctx, yesX, btnY, btnW, btnH, '⚔️ Yes, Attack!', isYesHovered);
+
+        _scoutPopup.buttons.push({
+            label: 'Yes',
+            x: yesX, y: btnY, w: btnW, h: btnH,
+            callback: () => {
+                const game = CatWar.Game;
+                if (!game) return;
+                const playerFaction = game.playerFaction;
+                const military = game.units.filter(u => 
+                    u.alive && 
+                    u.faction === playerFaction && 
+                    u.type !== 'PEASANT' && 
+                    u.type !== 'HEAD_MINER' && 
+                    u.type !== 'SCOUT' && 
+                    u.type !== 'FARMER'
+                );
+
+                if (military.length > 0 && _scoutPopup.castle) {
+                    CatWar.Input.pushCommand({
+                        type: 'ATTACK',
+                        units: military,
+                        target: _scoutPopup.castle
+                    });
+
+                    // Add charge particles
+                    for (const u of military) {
+                        game.addParticle({
+                            x: u.x, y: u.y - 12,
+                            vx: (Math.random() - 0.5) * 6,
+                            vy: -20 - Math.random() * 15,
+                            life: 0.8,
+                            alpha: 1,
+                            type: 'text',
+                            text: '⚔️',
+                            color: '#ff4444',
+                            size: 11
+                        });
+                    }
+
+                    if (CatWar.Audio) {
+                        CatWar.Audio.playSound('chargeSound');
+                    }
+                }
+            }
+        });
+
+        // No Button
+        const noX = panelX + panelW / 2 + 15;
+        const isNoHovered = _isPointInRect(CatWar.Input.screenX, CatWar.Input.screenY, noX, btnY, btnW, btnH);
+        _drawMedievalButton(ctx, noX, btnY, btnW, btnH, '❌ No, Hold', isNoHovered);
+
+        _scoutPopup.buttons.push({
+            label: 'No',
+            x: noX, y: btnY, w: btnW, h: btnH,
+            callback: () => {}
+        });
+    }
+
+    function showScoutPopup(castle) {
+        _scoutPopup.castle = castle;
+        _scoutPopup.visible = true;
+    }
+
+    function scoutPopupHandleClick(screenX, screenY) {
+        if (!_scoutPopup.visible) return false;
+        for (const btn of _scoutPopup.buttons) {
+            if (_isPointInRect(screenX, screenY, btn.x, btn.y, btn.w, btn.h)) {
+                if (btn.callback) btn.callback();
+                _scoutPopup.visible = false;
+                if (CatWar.Audio) {
+                    CatWar.Audio.playSound('buttonClick');
+                }
+                return true;
+            }
+        }
+        return true; // block other clicks
+    }
+
+    function isOverScoutPopup(screenX, screenY) {
+        return _scoutPopup.visible;
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -1676,6 +2040,11 @@ CatWar.Renderer = (function () {
         hotbarHandleClick,
         isOverHotbar,
         trainPanelHandleClick,
-        isOverTrainPanel
+        isOverTrainPanel,
+        minerPanelHandleClick,
+        isOverMinerPanel,
+        showScoutPopup,
+        scoutPopupHandleClick,
+        isOverScoutPopup
     };
 })();

@@ -44,6 +44,9 @@ CatWar.Game = (function () {
     // Per-faction resources (for AI factions too)
     let factionResources = {};
 
+    // Keep discovery state
+    let promptedCastles = new Set();
+
     // ─── Timing / Loop ───────────────────────────────────────────
     let canvas          = null;
     let rafId           = null;
@@ -114,6 +117,7 @@ CatWar.Game = (function () {
         projectiles = [];
         particles   = [];
         _nextId     = 1;
+        promptedCastles = new Set();
 
         // Generate map
         CatWar.Map.generate(mapSeed, numFactions);
@@ -315,6 +319,11 @@ CatWar.Game = (function () {
             _updateSimpleAI();
         }
 
+        // Check for scout discovering enemy castles (every 30 frames)
+        if (frameCount % 30 === 0) {
+            _checkScoutCastleDiscovery();
+        }
+
         // 9. Update fog of war (every ~10 frames to save perf)
         if (frameCount % 10 === 0) {
             const allEntities = [...units, ...buildings];
@@ -423,6 +432,9 @@ CatWar.Game = (function () {
                     u.state = 'GATHERING';
                     u.path  = null;
                     u.target = null;
+                    if (cmd.target && cmd.target.resource) {
+                        u.minePreference = cmd.target.resource;
+                    }
                 }
                 break;
             }
@@ -1317,6 +1329,9 @@ CatWar.Game = (function () {
 
                                 const rd = map.getResourceData(rx, ry);
                                 if (rd && rd.amount > 0) {
+                                    if (u.minePreference && u.minePreference !== 'auto') {
+                                        if (rd.resource !== u.minePreference) continue;
+                                    }
                                     const dist = Math.hypot(rx - uTile.tx, ry - uTile.ty);
                                     if (dist < bestDist) {
                                         bestDist = dist;
@@ -1407,6 +1422,39 @@ CatWar.Game = (function () {
                 if (_canAfford(res, uCfg.cost)) {
                     _deductCost(res, uCfg.cost);
                     b.trainingQueue.push(unitType);
+                }
+            }
+        }
+    }
+
+    function _checkScoutCastleDiscovery() {
+        const map = CatWar.Map;
+        if (!map) return;
+
+        // Find player's scouts
+        const scouts = units.filter(u => u.alive && u.faction === playerFaction && u.type === 'SCOUT');
+        if (scouts.length === 0) return;
+
+        // Find enemy castle keeps
+        const enemyKeeps = buildings.filter(b => b.hp > 0 && b.faction !== playerFaction && b.buildingType === 'CASTLE_KEEP');
+
+        for (const b of enemyKeeps) {
+            if (promptedCastles.has(b.id)) continue;
+
+            // Is the castle visible in the player's fog?
+            const tile = map.worldToTile(b.x + b.width / 2, b.y + b.height / 2);
+            if (!map.isVisible(tile.tx, tile.ty)) continue;
+
+            // Is a player scout within range? (12 tiles = 384px)
+            const scoutInRange = scouts.some(s => {
+                const dist = Math.hypot(s.x - (b.x + b.width / 2), s.y - (b.y + b.height / 2));
+                return dist <= 384;
+            });
+
+            if (scoutInRange) {
+                promptedCastles.add(b.id);
+                if (CatWar.Renderer && CatWar.Renderer.showScoutPopup) {
+                    CatWar.Renderer.showScoutPopup(b);
                 }
             }
         }
