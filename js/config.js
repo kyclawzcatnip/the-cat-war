@@ -299,6 +299,29 @@ CatWar.Config = (function () {
             claimRadius:  10,
             popProvided:  0,
             description: 'Defensive tower — attacks nearby enemies'
+        },
+        WALL: {
+            hp:         500,
+            cost:       { stone: 10 },
+            buildTime:  5,
+            size:       { w: 1, h: 1 },
+            trains:     [],
+            visionRange: 2,
+            popProvided: 0,
+            isWall:     true,
+            description: 'Stone wall — cheap and tough, blocks enemy movement'
+        },
+        GATE: {
+            hp:         400,
+            cost:       { stone: 20, wood: 10 },
+            buildTime:  8,
+            size:       { w: 1, h: 1 },
+            trains:     [],
+            visionRange: 2,
+            popProvided: 0,
+            isWall:     true,
+            isGate:     true,
+            description: 'Gate — friendly units pass through, blocks enemies'
         }
     };
 

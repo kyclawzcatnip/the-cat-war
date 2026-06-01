@@ -467,6 +467,66 @@ CatWar.Renderer = (function () {
                     b.constructionProgress,
                     1.0
                 );
+            } else if (b.buildingType === 'WALL' || b.buildingType === 'GATE') {
+                // ── Wall / Gate rendering ──
+                const bCfgW = cfg.BUILDINGS[b.buildingType];
+                const isGate = b.buildingType === 'GATE';
+                const wallColor = isGate ? '#5a4a3a' : '#8a8078';
+                const topColor = isGate ? '#4a3a2a' : '#9a9088';
+
+                // Main block
+                ctx.fillStyle = wallColor;
+                ctx.fillRect(b.x + 1, b.y + 1, b.width - 2, b.height - 2);
+
+                // Top edge highlight
+                ctx.fillStyle = topColor;
+                ctx.fillRect(b.x + 1, b.y + 1, b.width - 2, 4);
+
+                // Brick pattern for walls
+                if (!isGate) {
+                    ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+                    ctx.lineWidth = 0.5;
+                    const bw = b.width - 2;
+                    const bh = b.height - 2;
+                    for (let row = 0; row < 3; row++) {
+                        const ry = b.y + 1 + row * (bh / 3);
+                        ctx.beginPath();
+                        ctx.moveTo(b.x + 1, ry);
+                        ctx.lineTo(b.x + 1 + bw, ry);
+                        ctx.stroke();
+                        const offset = row % 2 === 0 ? 0 : bw / 4;
+                        for (let col = 0; col < 3; col++) {
+                            const cx = b.x + 1 + offset + col * (bw / 2);
+                            if (cx > b.x + 1 && cx < b.x + 1 + bw) {
+                                ctx.beginPath();
+                                ctx.moveTo(cx, ry);
+                                ctx.lineTo(cx, ry + bh / 3);
+                                ctx.stroke();
+                            }
+                        }
+                    }
+                } else {
+                    // Gate bars
+                    ctx.strokeStyle = '#7a6a5a';
+                    ctx.lineWidth = 2;
+                    const gx = b.x + b.width / 2;
+                    for (let i = -1; i <= 1; i++) {
+                        ctx.beginPath();
+                        ctx.moveTo(gx + i * 6, b.y + 5);
+                        ctx.lineTo(gx + i * 6, b.y + b.height - 3);
+                        ctx.stroke();
+                    }
+                }
+
+                // Border
+                ctx.strokeStyle = '#555';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(b.x + 1, b.y + 1, b.width - 2, b.height - 2);
+
+                // Faction tint on top
+                ctx.fillStyle = primary + '33';
+                ctx.fillRect(b.x + 1, b.y + 1, b.width - 2, b.height - 2);
+
             } else {
                 // Main building body
                 ctx.fillStyle = primary;
@@ -1269,11 +1329,13 @@ CatWar.Renderer = (function () {
         ARCHERY_RANGE:  { icon: '🏹', label: 'Archery',      shortcut: 'R' },
         BLACKSMITH:     { icon: '🔨', label: 'Blacksmith',   shortcut: 'K' },
         STABLE:         { icon: '🐴', label: 'Stable',       shortcut: 'S' },
-        SIEGE_WORKSHOP: { icon: '💣', label: 'Siege',        shortcut: 'W' },
+        SIEGE_WORKSHOP: { icon: '💣', label: 'Siege',        shortcut: 'I' },
         FARM:           { icon: '🌾', label: 'Farm',         shortcut: 'F' },
         LUMBER_MILL:    { icon: '🪵', label: 'Lumber',       shortcut: 'L' },
         STONE_QUARRY:   { icon: '⛏️',  label: 'Quarry',       shortcut: 'Q' },
-        WATCHTOWER:     { icon: '🗼', label: 'Tower',        shortcut: 'T' }
+        WATCHTOWER:     { icon: '🗼', label: 'Tower',        shortcut: 'T' },
+        WALL:           { icon: '🧱', label: 'Wall',         shortcut: 'W' },
+        GATE:           { icon: '🚪', label: 'Gate',         shortcut: 'G' }
     };
 
     function _renderBuildHotbar(w, h, game) {
