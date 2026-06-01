@@ -342,18 +342,22 @@ CatWar.Game = (function () {
             case 'MOVE': {
                 const map = CatWar.Map;
                 if (!map) break;
+                console.log('[GAME] MOVE command:', cmd.units.length, 'units to', cmd.x, cmd.y);
                 if (cmd.units.length === 1) {
                     const u = cmd.units[0];
                     const tile = map.worldToTile(cmd.x, cmd.y);
                     const uTile = map.worldToTile(u.x, u.y);
+                    console.log('[GAME] Unit at tile', uTile.tx, uTile.ty, '→ target tile', tile.tx, tile.ty);
                     const path = CatWar.Pathfinding.findPath(
                         uTile.tx, uTile.ty, tile.tx, tile.ty,
                         { ignoreThrottle: true }
                     );
+                    console.log('[GAME] Path result:', path ? path.length + ' waypoints' : 'NULL');
                     u.path      = path;
                     u.pathIndex = 0;
                     u.state     = 'MOVING';
                     u.target    = null;
+                    u.gatherTarget = null;
                 } else if (cmd.units.length > 1) {
                     const paths = CatWar.Pathfinding.findGroupPaths(cmd.units, cmd.x, cmd.y);
                     for (const [unit, path] of paths) {
@@ -361,6 +365,7 @@ CatWar.Game = (function () {
                         unit.pathIndex = 0;
                         unit.state     = 'MOVING';
                         unit.target    = null;
+                        unit.gatherTarget = null;
                     }
                 }
                 break;

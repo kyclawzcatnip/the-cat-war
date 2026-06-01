@@ -206,7 +206,7 @@ CatWar.Config = (function () {
         },
         BARRACKS: {
             hp:         800,
-            cost:       { gold: 150, wood: 100 },
+            cost:       { wood: 100 },
             buildTime:  30,
             size:       { w: 2, h: 2 },
             trains:     ['SWORDSCAT', 'SPEARCAT', 'KNIGHT'],
@@ -216,7 +216,7 @@ CatWar.Config = (function () {
         },
         ARCHERY_RANGE: {
             hp:         600,
-            cost:       { gold: 120, wood: 80 },
+            cost:       { wood: 80 },
             buildTime:  25,
             size:       { w: 2, h: 2 },
             trains:     ['ARCHER', 'CROSSBOW'],
@@ -226,7 +226,7 @@ CatWar.Config = (function () {
         },
         BLACKSMITH: {
             hp:         500,
-            cost:       { gold: 200, stone: 150 },
+            cost:       { stone: 150 },
             buildTime:  35,
             size:       { w: 2, h: 2 },
             trains:     [],
@@ -236,7 +236,7 @@ CatWar.Config = (function () {
         },
         STABLE: {
             hp:         700,
-            cost:       { gold: 180, wood: 100 },
+            cost:       { wood: 100 },
             buildTime:  30,
             size:       { w: 2, h: 2 },
             trains:     ['CAVALRY'],
@@ -246,7 +246,7 @@ CatWar.Config = (function () {
         },
         SIEGE_WORKSHOP: {
             hp:         600,
-            cost:       { gold: 250, wood: 150, stone: 100 },
+            cost:       { wood: 150, stone: 100 },
             buildTime:  40,
             size:       { w: 3, h: 2 },
             trains:     ['CATAPULT'],
@@ -256,7 +256,7 @@ CatWar.Config = (function () {
         },
         FARM: {
             hp:         300,
-            cost:       { gold: 80, wood: 50 },
+            cost:       { wood: 50 },
             buildTime:  20,
             size:       { w: 2, h: 2 },
             trains:     [],
@@ -267,7 +267,7 @@ CatWar.Config = (function () {
         },
         LUMBER_MILL: {
             hp:         400,
-            cost:       { gold: 100 },
+            cost:       { wood: 30 },
             buildTime:  20,
             size:       { w: 2, h: 2 },
             trains:     [],
@@ -278,7 +278,7 @@ CatWar.Config = (function () {
         },
         STONE_QUARRY: {
             hp:         400,
-            cost:       { gold: 100, wood: 50 },
+            cost:       { wood: 50 },
             buildTime:  25,
             size:       { w: 2, h: 2 },
             trains:     [],
@@ -289,7 +289,7 @@ CatWar.Config = (function () {
         },
         WATCHTOWER: {
             hp:         350,
-            cost:       { gold: 80, stone: 60 },
+            cost:       { stone: 60 },
             buildTime:  20,
             size:       { w: 1, h: 1 },
             trains:     [],

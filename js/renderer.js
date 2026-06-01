@@ -159,6 +159,14 @@ CatWar.Renderer = (function () {
             _renderBuildHotbar(w, h, game);
         }
 
+        // Training panel (when a building is selected)
+        if (game && game.state === 'PLAYING') {
+            const inp = CatWar.Input;
+            if (inp && inp.selectedBuilding) {
+                _renderTrainingPanel(w, h, inp.selectedBuilding, game);
+            }
+        }
+
         // Pause overlay
         if (game && game.state === 'PAUSED') {
             _renderPauseOverlay(w, h);
@@ -1028,6 +1036,220 @@ CatWar.Renderer = (function () {
     }
 
     // ═══════════════════════════════════════════════════════════════
+    //  Training Panel (selected building)
+    // ═══════════════════════════════════════════════════════════════
+
+    const UNIT_ICONS = {
+        PEASANT:          { icon: '👷', label: 'Peasant' },
+        HEAD_MINER:       { icon: '⛏️', label: 'Head Miner' },
+        SCOUT:            { icon: '🐾', label: 'Scout' },
+        SWORDSCAT:        { icon: '⚔️', label: 'Swordscat' },
+        SPEARCAT:         { icon: '🔱', label: 'Spearcat' },
+        KNIGHT:           { icon: '🛡️', label: 'Knight' },
+        ARCHER:           { icon: '🏹', label: 'Archer' },
+        CROSSBOW:         { icon: '🎯', label: 'Crossbow' },
+        CAVALRY:          { icon: '🐴', label: 'Cavalry' },
+        CATAPULT:         { icon: '💥', label: 'Catapult' },
+        HEALER:           { icon: '💚', label: 'Healer' },
+        ROYAL_COMMANDER:  { icon: '👑', label: 'Commander' }
+    };
+
+    const _trainPanel = {
+        buttons: [],    // { unitType, x, y, w, h }
+        visible: false
+    };
+
+    function _renderTrainingPanel(w, h, building, game) {
+        const cfg = CFG();
+        const bCfg = cfg.BUILDINGS[building.buildingType];
+        if (!bCfg) return;
+
+        // Only show for player faction buildings
+        if (building.faction !== game.playerFaction) return;
+
+        const playerRes = game.playerResources || {};
+        const trainable = bCfg.trains || [];
+        _trainPanel.buttons = [];
+        _trainPanel.visible = true;
+
+        // Panel dimensions
+        const panelH = 90;
+        const panelW = Math.max(400, trainable.length * 80 + 180);
+        const panelX = (w - panelW) / 2;
+        const panelY = h - panelH - 8;
+
+        // Panel background
+        ctx.save();
+        ctx.fillStyle = 'rgba(15, 10, 5, 0.88)';
+        _drawRoundedRect(ctx, panelX, panelY, panelW, panelH, 8);
+        ctx.fill();
+
+        // Panel border
+        ctx.strokeStyle = '#8B6914';
+        ctx.lineWidth = 2;
+        _drawRoundedRect(ctx, panelX, panelY, panelW, panelH, 8);
+        ctx.stroke();
+        ctx.restore();
+
+        // Building name + HP
+        ctx.save();
+        ctx.font = 'bold 14px "Palatino Linotype", serif';
+        ctx.fillStyle = '#FFD700';
+        ctx.textAlign = 'left';
+        const iconInfo = BUILDING_ICONS[building.buildingType] || { icon: '🏠', label: building.buildingType };
+        ctx.fillText(iconInfo.icon + ' ' + iconInfo.label, panelX + 12, panelY + 20);
+
+        // HP bar
+        const hpRatio = building.hp / building.maxHp;
+        const hpBarW = 80;
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillRect(panelX + 12, panelY + 26, hpBarW, 6);
+        ctx.fillStyle = hpRatio > 0.5 ? '#4CAF50' : hpRatio > 0.25 ? '#FF9800' : '#F44336';
+        ctx.fillRect(panelX + 12, panelY + 26, hpBarW * hpRatio, 6);
+        ctx.font = '10px monospace';
+        ctx.fillStyle = '#aaa';
+        ctx.fillText(building.hp + '/' + building.maxHp, panelX + 12 + hpBarW + 5, panelY + 32);
+
+        // Training queue progress
+        if (building.trainingQueue && building.trainingQueue.length > 0) {
+            const trainType = building.trainingQueue[0];
+            const trainCfg = cfg.UNITS[trainType];
+            const progress = building.trainingProgress || 0;
+            const trainIcon = UNIT_ICONS[trainType] || { icon: '🐱', label: trainType };
+
+            ctx.font = '11px "Palatino Linotype", serif';
+            ctx.fillStyle = '#C8B896';
+            ctx.fillText('Training: ' + trainIcon.icon + ' ' + trainIcon.label, panelX + 12, panelY + 50);
+
+            // Progress bar
+            const progBarW = 100;
+            ctx.fillStyle = 'rgba(0,0,0,0.5)';
+            ctx.fillRect(panelX + 12, panelY + 55, progBarW, 8);
+            ctx.fillStyle = '#4CAF50';
+            ctx.fillRect(panelX + 12, panelY + 55, progBarW * progress, 8);
+
+            // Queue count
+            if (building.trainingQueue.length > 1) {
+                ctx.fillStyle = '#aaa';
+                ctx.fillText('+' + (building.trainingQueue.length - 1) + ' queued', panelX + 12 + progBarW + 8, panelY + 63);
+            }
+        }
+
+        ctx.restore();
+
+        // Train buttons
+        if (trainable.length > 0) {
+            const btnSize = 58;
+            const btnPad = 8;
+            const startX = panelX + 160;
+            const btnY = panelY + 10;
+
+            for (let i = 0; i < trainable.length; i++) {
+                const unitType = trainable[i];
+                const uCfg = cfg.UNITS[unitType];
+                if (!uCfg) continue;
+                const unitIcon = UNIT_ICONS[unitType] || { icon: '🐱', label: unitType };
+
+                const bx = startX + i * (btnSize + btnPad);
+                const by = btnY;
+
+                const canAfford = uCfg.cost ? _canAffordBuilding(playerRes, uCfg.cost) : true;
+                const isHovered = _isPointInRect(CatWar.Input.screenX, CatWar.Input.screenY, bx, by, btnSize, btnSize);
+
+                ctx.save();
+
+                // Button bg
+                _drawRoundedRect(ctx, bx, by, btnSize, btnSize, 5);
+                if (isHovered && canAfford) {
+                    ctx.fillStyle = 'rgba(76, 175, 80, 0.35)';
+                } else if (isHovered) {
+                    ctx.fillStyle = 'rgba(204, 51, 51, 0.25)';
+                } else {
+                    ctx.fillStyle = 'rgba(60, 40, 25, 0.6)';
+                }
+                ctx.fill();
+
+                // Button border
+                _drawRoundedRect(ctx, bx, by, btnSize, btnSize, 5);
+                ctx.strokeStyle = canAfford ? 'rgba(139, 105, 20, 0.7)' : 'rgba(100, 60, 60, 0.5)';
+                ctx.lineWidth = isHovered ? 2 : 1;
+                ctx.stroke();
+
+                // Icon
+                ctx.font = '18px serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillStyle = canAfford ? '#FFFFFF' : '#666';
+                ctx.fillText(unitIcon.icon, bx + btnSize / 2, by + 20);
+
+                // Label
+                ctx.font = 'bold 8px "Palatino Linotype", serif';
+                ctx.fillStyle = canAfford ? '#D4B896' : '#555';
+                ctx.textBaseline = 'top';
+                ctx.fillText(unitIcon.label, bx + btnSize / 2, by + 33);
+
+                // Cost
+                ctx.font = '8px monospace';
+                ctx.fillStyle = canAfford ? '#80CC80' : '#CC5555';
+                const costs = [];
+                if (uCfg.cost) {
+                    if (uCfg.cost.gold) costs.push('🪙' + uCfg.cost.gold);
+                    if (uCfg.cost.wood) costs.push('🪵' + uCfg.cost.wood);
+                    if (uCfg.cost.stone) costs.push('🪨' + uCfg.cost.stone);
+                }
+                ctx.fillText(costs.join(' '), bx + btnSize / 2, by + 44);
+
+                ctx.textAlign = 'start';
+                ctx.textBaseline = 'alphabetic';
+                ctx.restore();
+
+                // Register button
+                _trainPanel.buttons.push({ unitType, x: bx, y: by, w: btnSize, h: btnSize });
+            }
+        }
+    }
+
+    function _isPointInRect(px, py, rx, ry, rw, rh) {
+        return px >= rx && px <= rx + rw && py >= ry && py <= ry + rh;
+    }
+
+    /**
+     * Handle training panel click — queue unit training.
+     * @returns {boolean} true if click was consumed.
+     */
+    function trainPanelHandleClick(screenX, screenY) {
+        if (!_trainPanel.visible) return false;
+        for (const btn of _trainPanel.buttons) {
+            if (_isPointInRect(screenX, screenY, btn.x, btn.y, btn.w, btn.h)) {
+                const inp = CatWar.Input;
+                if (inp && inp.selectedBuilding) {
+                    const result = CatWar.Game.trainUnit(inp.selectedBuilding, btn.unitType);
+                    if (result) {
+                        console.log('[UI] Queued training:', btn.unitType);
+                    } else {
+                        console.log('[UI] Cannot train:', btn.unitType, '(cost/pop?)');
+                    }
+                }
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Check if screen point is over the training panel.
+     */
+    function isOverTrainPanel(screenX, screenY) {
+        if (!_trainPanel.visible) return false;
+        for (const btn of _trainPanel.buttons) {
+            if (_isPointInRect(screenX, screenY, btn.x, btn.y, btn.w, btn.h)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // ═══════════════════════════════════════════════════════════════
     //  Building Hotbar
     // ═══════════════════════════════════════════════════════════════
 
@@ -1383,6 +1605,8 @@ CatWar.Renderer = (function () {
         invalidateFog,
         hotbarHandleHover,
         hotbarHandleClick,
-        isOverHotbar
+        isOverHotbar,
+        trainPanelHandleClick,
+        isOverTrainPanel
     };
 })();

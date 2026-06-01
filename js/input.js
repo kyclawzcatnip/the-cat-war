@@ -252,7 +252,11 @@ CatWar.Input = (function () {
     // ═══════════════════════════════════════════════════════════════
 
     function _handleLeftClick(shiftHeld) {
-        // Check hotbar first
+        // Check training panel first
+        if (CatWar.Renderer && CatWar.Renderer.trainPanelHandleClick &&
+            CatWar.Renderer.trainPanelHandleClick(screenX, screenY)) return;
+
+        // Check hotbar
         if (CatWar.Renderer && CatWar.Renderer.hotbarHandleClick &&
             CatWar.Renderer.hotbarHandleClick(screenX, screenY)) return;
 
@@ -333,11 +337,18 @@ CatWar.Input = (function () {
     function _handleRightClick() {
         // Don't issue commands when clicking over the hotbar
         if (CatWar.Renderer && CatWar.Renderer.isOverHotbar &&
-            CatWar.Renderer.isOverHotbar(screenX, screenY)) return;
+            CatWar.Renderer.isOverHotbar(screenX, screenY)) {
+            console.log('[INPUT] Right-click blocked by hotbar');
+            return;
+        }
 
-        if (selectedUnits.length === 0) return;
+        if (selectedUnits.length === 0) {
+            console.log('[INPUT] Right-click but no units selected');
+            return;
+        }
         const game = CatWar.Game;
         if (!game) return;
+        console.log('[INPUT] Right-click with', selectedUnits.length, 'selected units at screen', screenX, screenY);
 
         const w = CatWar.Camera.screenToWorld(screenX, screenY);
         const target = game.getEntitiesAtPoint(w.x, w.y);
