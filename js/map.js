@@ -524,11 +524,21 @@ CatWar.Map = (function () {
     }
 
     /** Check if a tile is walkable (terrain + buildings). */
-    function isWalkable(tx, ty) {
+    function isWalkable(tx, ty, factionId) {
         const cfg = CFG();
         if (tx < 0 || tx >= cfg.MAP_WIDTH || ty < 0 || ty >= cfg.MAP_HEIGHT) return false;
         // Blocked by building?
-        if (buildingGrid && buildingGrid[ty][tx]) return false;
+        if (buildingGrid && buildingGrid[ty][tx]) {
+            // Is it a friendly gate?
+            const game = window.CatWar && window.CatWar.Game;
+            if (game && factionId) {
+                const building = game.getBuildingAtTile(tx, ty);
+                if (building && building.buildingType === 'GATE' && building.faction === factionId) {
+                    return true;
+                }
+            }
+            return false;
+        }
         const tileId  = grid[ty][tx];
         const tKey    = cfg.TERRAIN_BY_ID[tileId];
         const terrain = cfg.TERRAIN[tKey];
@@ -536,11 +546,21 @@ CatWar.Map = (function () {
     }
 
     /** Get movement cost for a tile. Returns Infinity for unwalkable. */
-    function getMovementCost(tx, ty) {
+    function getMovementCost(tx, ty, factionId) {
         const cfg = CFG();
         if (tx < 0 || tx >= cfg.MAP_WIDTH || ty < 0 || ty >= cfg.MAP_HEIGHT) return Infinity;
         // Blocked by building?
-        if (buildingGrid && buildingGrid[ty][tx]) return Infinity;
+        if (buildingGrid && buildingGrid[ty][tx]) {
+            // Is it a friendly gate?
+            const game = window.CatWar && window.CatWar.Game;
+            if (game && factionId) {
+                const building = game.getBuildingAtTile(tx, ty);
+                if (building && building.buildingType === 'GATE' && building.faction === factionId) {
+                    return 1.0;
+                }
+            }
+            return Infinity;
+        }
         const tileId  = grid[ty][tx];
         const tKey    = cfg.TERRAIN_BY_ID[tileId];
         const terrain = cfg.TERRAIN[tKey];

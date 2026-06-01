@@ -350,7 +350,7 @@ CatWar.Game = (function () {
                     console.log('[GAME] Unit at tile', uTile.tx, uTile.ty, '→ target tile', tile.tx, tile.ty);
                     const path = CatWar.Pathfinding.findPath(
                         uTile.tx, uTile.ty, tile.tx, tile.ty,
-                        { ignoreThrottle: true }
+                        { ignoreThrottle: true, factionId: u.faction }
                     );
                     console.log('[GAME] Path result:', path ? path.length + ' waypoints' : 'NULL');
                     u.path      = path;
@@ -387,7 +387,7 @@ CatWar.Game = (function () {
                     const uTile = map.worldToTile(u.x, u.y);
                     const path  = CatWar.Pathfinding.findPath(
                         uTile.tx, uTile.ty, tile.tx, tile.ty,
-                        { ignoreThrottle: true }
+                        { ignoreThrottle: true, factionId: u.faction }
                     );
                     u.path      = path;
                     u.pathIndex = 0;
@@ -717,7 +717,7 @@ CatWar.Game = (function () {
                 const uTile = map.worldToTile(u.x, u.y);
                 const path = CatWar.Pathfinding.findPath(
                     uTile.tx, uTile.ty, tx, ty,
-                    { ignoreThrottle: true }
+                    { ignoreThrottle: true, factionId: u.faction }
                 );
                 if (path && path.length > 0) {
                     u.path = path;
@@ -808,7 +808,7 @@ CatWar.Game = (function () {
                 const bTile = map.worldToTile(targetX, targetY);
                 const path = CatWar.Pathfinding.findPath(
                     uTile.tx, uTile.ty, bTile.tx, bTile.ty,
-                    { ignoreThrottle: true }
+                    { ignoreThrottle: true, factionId: u.faction }
                 );
                 if (path && path.length > 0) {
                     u.path = path;
@@ -914,7 +914,7 @@ CatWar.Game = (function () {
                             const rTile = map.worldToTile(b.rallyX, b.rallyY);
                             newUnit.path = CatWar.Pathfinding.findPath(
                                 uTile.tx, uTile.ty, rTile.tx, rTile.ty,
-                                { ignoreThrottle: true }
+                                { ignoreThrottle: true, factionId: newUnit.faction }
                             );
                             newUnit.pathIndex = 0;
                             newUnit.state = 'MOVING';
@@ -1159,7 +1159,7 @@ CatWar.Game = (function () {
                             const path = CatWar.Pathfinding.findPath(
                                 tileFrom.tx, tileFrom.ty,
                                 tileTo.tx, tileTo.ty,
-                                { ignoreThrottle: true }
+                                { ignoreThrottle: true, factionId: u.faction }
                             );
                             if (path) {
                                 u.path = path;
@@ -1436,6 +1436,22 @@ CatWar.Game = (function () {
         return buildings.filter(b => b.hp > 0 && b.faction === factionId);
     }
 
+    function getBuildingAtTile(tx, ty) {
+        const cfg = CFG();
+        const ts  = cfg.TILE_SIZE;
+        for (const b of buildings) {
+            if (b.hp <= 0) continue;
+            const btx = Math.floor(b.x / ts);
+            const bty = Math.floor(b.y / ts);
+            const btw = Math.round(b.width / ts);
+            const bth = Math.round(b.height / ts);
+            if (tx >= btx && tx < btx + btw && ty >= bty && ty < bty + bth) {
+                return b;
+            }
+        }
+        return null;
+    }
+
     // ═══════════════════════════════════════════════════════════════
     //  Economy helpers
     // ═══════════════════════════════════════════════════════════════
@@ -1564,6 +1580,7 @@ CatWar.Game = (function () {
         getEntitiesInRect,
         getUnitsForFaction,
         getBuildingsForFaction,
+        getBuildingAtTile,
 
         // Constants
         STATES

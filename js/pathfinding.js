@@ -125,6 +125,8 @@ CatWar.Pathfinding = (function () {
         const map = CatWar.Map;
         if (!map) return null;
 
+        const factionId = opts.factionId;
+
         // Throttle check
         if (!opts.ignoreThrottle) {
             if (pathsThisFrame >= cfg.PATHFINDING.MAX_PER_FRAME) return null;
@@ -141,8 +143,8 @@ CatWar.Pathfinding = (function () {
         if (sx === ex && sy === ey) return [{ x: ex, y: ey }];
 
         // If destination is unwalkable, find the closest walkable neighbour
-        if (!map.isWalkable(ex, ey)) {
-            const alt = _nearestWalkable(ex, ey);
+        if (!map.isWalkable(ex, ey, factionId)) {
+            const alt = _nearestWalkable(ex, ey, factionId);
             if (!alt) return null;
             ex = alt.x;
             ey = alt.y;
@@ -210,18 +212,18 @@ CatWar.Pathfinding = (function () {
                 if (closed[nk]) continue;
 
                 // Walkable check
-                if (!map.isWalkable(nx, ny)) continue;
+                if (!map.isWalkable(nx, ny, factionId)) continue;
 
                 // For diagonal movement, ensure both adjacent cardinal tiles
                 // are walkable (no corner-cutting through walls)
                 if (DIRS[d].dx !== 0 && DIRS[d].dy !== 0) {
-                    if (!map.isWalkable(cx + DIRS[d].dx, cy) ||
-                        !map.isWalkable(cx, cy + DIRS[d].dy)) {
+                    if (!map.isWalkable(cx + DIRS[d].dx, cy, factionId) ||
+                        !map.isWalkable(cx, cy + DIRS[d].dy, factionId)) {
                         continue;
                     }
                 }
 
-                const moveCost = map.getMovementCost(nx, ny);
+                const moveCost = map.getMovementCost(nx, ny, factionId);
                 if (moveCost >= 100) continue; // effectively impassable
 
                 const stepCost = (d % 2 === 0) ? moveCost : moveCost * DIAG;
@@ -338,7 +340,7 @@ CatWar.Pathfinding = (function () {
     //  Nearest walkable tile (for unwalkable destinations)
     // ═══════════════════════════════════════════════════════════════
 
-    function _nearestWalkable(tx, ty) {
+    function _nearestWalkable(tx, ty, factionId) {
         const map = CatWar.Map;
         const cfg = CFG();
 
@@ -351,7 +353,7 @@ CatWar.Pathfinding = (function () {
                     const ny = ty + dy;
                     if (nx >= 0 && nx < cfg.MAP_WIDTH &&
                         ny >= 0 && ny < cfg.MAP_HEIGHT &&
-                        map.isWalkable(nx, ny)) {
+                        map.isWalkable(nx, ny, factionId)) {
                         return { x: nx, y: ny };
                     }
                 }
@@ -398,7 +400,7 @@ CatWar.Pathfinding = (function () {
         const leaderTile = map.worldToTile(leader.x, leader.y);
         const leaderPath = findPath(leaderTile.tx, leaderTile.ty,
                                      destTile.tx, destTile.ty,
-                                     { ignoreThrottle: true });
+                                     { ignoreThrottle: true, factionId: leader.faction });
         results.set(leader, leaderPath);
 
         // Formation: arrange other units in a grid around the destination
@@ -421,15 +423,15 @@ CatWar.Pathfinding = (function () {
             targetTY = Math.max(0, Math.min(cfg.MAP_HEIGHT - 1, targetTY));
 
             // If not walkable, find nearby walkable
-            if (!map.isWalkable(targetTX, targetTY)) {
-                const alt = _nearestWalkable(targetTX, targetTY);
+            if (!map.isWalkable(targetTX, targetTY, u.faction)) {
+                const alt = _nearestWalkable(targetTX, targetTY, u.faction);
                 if (alt) { targetTX = alt.x; targetTY = alt.y; }
             }
 
             const uTile = map.worldToTile(u.x, u.y);
             const uPath = findPath(uTile.tx, uTile.ty,
                                     targetTX, targetTY,
-                                    { ignoreThrottle: true });
+                                    { ignoreThrottle: true, factionId: u.faction });
             results.set(u, uPath);
         }
 
