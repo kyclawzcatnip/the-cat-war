@@ -1518,9 +1518,16 @@ CatWar.Renderer = (function () {
                             if (!matches) {
                                 w.gatherTarget = null;
                                 w.path = null;
-                                if (w.state !== 'RETURNING') {
+                                if (w.carrying > 0) {
+                                    w.state = 'RETURNING';
+                                } else {
                                     w.state = 'IDLE';
                                 }
+                            }
+                        } else {
+                            if (w.carrying > 0 && w.state !== 'RETURNING') {
+                                w.state = 'RETURNING';
+                                w.path = null;
                             }
                         }
                     }

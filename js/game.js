@@ -519,8 +519,13 @@ CatWar.Game = (function () {
             // State machine
             switch (u.state) {
                 case 'IDLE':
-                    // Auto-aggro nearby enemies
-                    _autoAggro(u);
+                    if ((u.type === 'PEASANT' || u.type === 'HEAD_MINER') && u.carrying > 0) {
+                        u.state = 'RETURNING';
+                        u.path = null;
+                    } else {
+                        // Auto-aggro nearby enemies
+                        _autoAggro(u);
+                    }
                     break;
 
                 case 'MOVING':
