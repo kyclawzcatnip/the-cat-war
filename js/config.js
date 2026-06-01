@@ -132,6 +132,17 @@ CatWar.Config = (function () {
             popCost:    1,
             description: 'Heavy ranged unit — slow but high damage and range'
         },
+        BIPLANE: {
+            hp:         35,
+            damage:     6,
+            speed:      3.5,
+            range:      6,
+            cost:       { gold: 120, wood: 80 },
+            trainTime:  28,
+            popCost:    2,
+            isFlyer:    true,
+            description: 'Biplane Cat — aerial fighter that flies over all terrain and strafes targets with rapid machine guns!'
+        },
         KNIGHT: {
             hp:         75,
             damage:     10,
@@ -230,7 +241,7 @@ CatWar.Config = (function () {
             cost:       { wood: 80 },
             buildTime:  25,
             size:       { w: 2, h: 2 },
-            trains:     ['ARCHER', 'CROSSBOW'],
+            trains:     ['ARCHER', 'CROSSBOW', 'BIPLANE'],
             visionRange: 6,
             popProvided: 0,
             description: 'Trains ranged units'

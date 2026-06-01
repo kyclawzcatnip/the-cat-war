@@ -1076,6 +1076,105 @@ CatWar.Sprites = (function () {
     ctx.restore();
   };
 
+  // ----------- BIPLANE -----------
+  unitDrawers.BIPLANE = function (ctx, dir, frame, fur, fc, s, state) {
+    var d = dir || 1;
+    var bob = Math.sin((frame || 0) * Math.PI / 1.5) * 3 * s;
+
+    ctx.save();
+    ctx.scale(d, 1);
+
+    // 1. Lower Wing
+    ctx.fillStyle = fc.secondary || '#8B0000';
+    roundRect(ctx, -14 * s, -1 * s + bob, 22 * s, 4 * s, 1.5);
+    roundRectStroke(ctx, -14 * s, -1 * s + bob, 22 * s, 4 * s, 1.5, darken(fc.secondary, 20), 0.8 * s);
+
+    // 2. Fuselage
+    ctx.fillStyle = fc.primary || '#DAA520';
+    ctx.beginPath();
+    ctx.moveTo(-16 * s, -4 * s + bob);
+    ctx.quadraticCurveTo(-2 * s, -9 * s + bob, 8 * s, -9 * s + bob);
+    ctx.lineTo(10 * s, -2 * s + bob);
+    ctx.lineTo(8 * s, 2 * s + bob);
+    ctx.quadraticCurveTo(-2 * s, 1 * s + bob, -16 * s, -1 * s + bob);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = darken(fc.primary, 20);
+    ctx.lineWidth = 1 * s;
+    ctx.stroke();
+
+    // Tail fin (Rudder)
+    ctx.fillStyle = fc.secondary || '#8B0000';
+    ctx.beginPath();
+    ctx.moveTo(-16 * s, -4 * s + bob);
+    ctx.lineTo(-20 * s, -10 * s + bob);
+    ctx.lineTo(-14 * s, -8 * s + bob);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = darken(fc.secondary, 20);
+    ctx.stroke();
+
+    // Cockpit opening
+    oval(ctx, 0, -8 * s + bob, 4 * s, 2.5 * s, '#000000');
+
+    // 3. Cat Pilot Face
+    var px = 0;
+    var py = -8 * s + bob;
+    circle(ctx, px, py - 3 * s, 4.5 * s, fur);
+    // Ears
+    triangle(ctx, px - 3.5 * s, py - 6 * s, px - 1 * s, py - 11 * s, px - 0.5 * s, py - 6 * s, fur);
+    triangle(ctx, px + 0.5 * s, py - 6 * s, px + 1 * s, py - 11 * s, px + 3.5 * s, py - 6 * s, fur);
+    // Helmet
+    ctx.fillStyle = '#4a2f13';
+    ctx.beginPath();
+    ctx.arc(px, py - 3 * s, 4.8 * s, Math.PI, 0);
+    ctx.fill();
+    // Goggles strap
+    line(ctx, px - 4.5 * s, py - 3.5 * s, px + 4.5 * s, py - 3.5 * s, '#222', 1 * s);
+    // Goggles lenses
+    circle(ctx, px - 1.8 * s, py - 3.5 * s, 1.5 * s, '#00ffff');
+    circle(ctx, px + 1.8 * s, py - 3.5 * s, 1.5 * s, '#00ffff');
+    circle(ctx, px - 1.8 * s, py - 3.5 * s, 0.7 * s, '#ffffff');
+    circle(ctx, px + 1.8 * s, py - 3.5 * s, 0.7 * s, '#ffffff');
+    // Eyes
+    circle(ctx, px - 1.5 * s, py - 1 * s, 0.8 * s, '#000000');
+    circle(ctx, px + 1.5 * s, py - 1 * s, 0.8 * s, '#000000');
+    // Nose
+    triangle(ctx, px - 0.5 * s, py, px + 0.5 * s, py, px, py + 0.5 * s, '#ffb6c1');
+
+    // 4. Struts
+    ctx.strokeStyle = '#555';
+    ctx.lineWidth = 1 * s;
+    line(ctx, -6 * s, -1 * s + bob, -6 * s, -14 * s + bob);
+    line(ctx, 4 * s, -1 * s + bob, 4 * s, -14 * s + bob);
+
+    // 5. Upper Wing
+    ctx.fillStyle = fc.primary || '#DAA520';
+    roundRect(ctx, -10 * s, -16 * s + bob, 24 * s, 4.5 * s, 2);
+    roundRectStroke(ctx, -10 * s, -16 * s + bob, 24 * s, 4.5 * s, 2, darken(fc.primary, 20), 0.8 * s);
+    ctx.fillStyle = fc.secondary || '#8B0000';
+    roundRect(ctx, 10 * s, -16 * s + bob, 3 * s, 4.5 * s, 0.5);
+    roundRect(ctx, -10 * s, -16 * s + bob, 3 * s, 4.5 * s, 0.5);
+
+    // 6. Propeller Spinner
+    ctx.fillStyle = '#cccccc';
+    ctx.beginPath();
+    ctx.arc(8 * s, -3.5 * s + bob, 2.5 * s, -Math.PI / 2, Math.PI / 2);
+    ctx.fill();
+
+    // Propeller Blades
+    ctx.save();
+    ctx.translate(9.5 * s, -3.5 * s + bob);
+    var propAngle = (frame * 1.5);
+    ctx.rotate(propAngle);
+    ctx.fillStyle = 'rgba(230, 230, 230, 0.6)';
+    roundRect(ctx, -1 * s, -12 * s, 2 * s, 24 * s, 0.8);
+    circle(ctx, 0, 0, 0.8 * s, '#555555');
+    ctx.restore();
+
+    ctx.restore();
+  };
+
   /* ========================================================================
    *  DRAW CAT — public entry point
    * ====================================================================== */

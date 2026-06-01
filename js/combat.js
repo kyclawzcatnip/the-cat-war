@@ -112,7 +112,8 @@ CatWar.Combat = (function () {
     BOLT: 280,
     BOULDER: 180,
     HEALING_POTION: 200,
-    CATNIP_POTION: 200
+    CATNIP_POTION: 200,
+    BULLET: 450
   };
 
   var PROJECTILE_COLORS = {
@@ -120,7 +121,8 @@ CatWar.Combat = (function () {
     BOLT: '#555555',
     BOULDER: '#808080',
     HEALING_POTION: '#44ff44',
-    CATNIP_POTION: '#aa44ff'
+    CATNIP_POTION: '#aa44ff',
+    BULLET: '#ffd700'
   };
 
   /**

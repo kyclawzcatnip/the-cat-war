@@ -359,26 +359,50 @@ CatWar.Game = (function () {
                 if (cmd.units.length === 1) {
                     const u = cmd.units[0];
                     const tile = map.worldToTile(cmd.x, cmd.y);
-                    const uTile = map.worldToTile(u.x, u.y);
-                    console.log('[GAME] Unit at tile', uTile.tx, uTile.ty, '→ target tile', tile.tx, tile.ty);
-                    const path = CatWar.Pathfinding.findPath(
-                        uTile.tx, uTile.ty, tile.tx, tile.ty,
-                        { ignoreThrottle: true, factionId: u.faction }
-                    );
-                    console.log('[GAME] Path result:', path ? path.length + ' waypoints' : 'NULL');
-                    u.path      = path;
-                    u.pathIndex = 0;
-                    u.state     = 'MOVING';
-                    u.target    = null;
-                    u.gatherTarget = null;
+                    if (u.isFlyer) {
+                        u.path      = [{ x: tile.tx, y: tile.ty }];
+                        u.pathIndex = 0;
+                        u.state     = 'MOVING';
+                        u.target    = null;
+                        u.gatherTarget = null;
+                    } else {
+                        const uTile = map.worldToTile(u.x, u.y);
+                        console.log('[GAME] Unit at tile', uTile.tx, uTile.ty, '→ target tile', tile.tx, tile.ty);
+                        const path = CatWar.Pathfinding.findPath(
+                            uTile.tx, uTile.ty, tile.tx, tile.ty,
+                            { ignoreThrottle: true, factionId: u.faction }
+                        );
+                        console.log('[GAME] Path result:', path ? path.length + ' waypoints' : 'NULL');
+                        u.path      = path;
+                        u.pathIndex = 0;
+                        u.state     = 'MOVING';
+                        u.target    = null;
+                        u.gatherTarget = null;
+                    }
                 } else if (cmd.units.length > 1) {
-                    const paths = CatWar.Pathfinding.findGroupPaths(cmd.units, cmd.x, cmd.y);
-                    for (const [unit, path] of paths) {
-                        unit.path      = path;
-                        unit.pathIndex = 0;
-                        unit.state     = 'MOVING';
-                        unit.target    = null;
-                        unit.gatherTarget = null;
+                    const flyers = cmd.units.filter(u => u.isFlyer);
+                    const groundUnits = cmd.units.filter(u => !u.isFlyer);
+
+                    if (flyers.length > 0) {
+                        const tile = map.worldToTile(cmd.x, cmd.y);
+                        for (const u of flyers) {
+                            u.path = [{ x: tile.tx, y: tile.ty }];
+                            u.pathIndex = 0;
+                            u.state = 'MOVING';
+                            u.target = null;
+                            u.gatherTarget = null;
+                        }
+                    }
+
+                    if (groundUnits.length > 0) {
+                        const paths = CatWar.Pathfinding.findGroupPaths(groundUnits, cmd.x, cmd.y);
+                        for (const [unit, path] of paths) {
+                            unit.path      = path;
+                            unit.pathIndex = 0;
+                            unit.state     = 'MOVING';
+                            unit.target    = null;
+                            unit.gatherTarget = null;
+                        }
                     }
                 }
                 break;
@@ -397,15 +421,22 @@ CatWar.Game = (function () {
                 if (!map) break;
                 for (const u of cmd.units) {
                     const tile  = map.worldToTile(cmd.x, cmd.y);
-                    const uTile = map.worldToTile(u.x, u.y);
-                    const path  = CatWar.Pathfinding.findPath(
-                        uTile.tx, uTile.ty, tile.tx, tile.ty,
-                        { ignoreThrottle: true, factionId: u.faction }
-                    );
-                    u.path      = path;
-                    u.pathIndex = 0;
-                    u.state     = 'ATTACK_MOVING';
-                    u.target    = null;
+                    if (u.isFlyer) {
+                        u.path      = [{ x: tile.tx, y: tile.ty }];
+                        u.pathIndex = 0;
+                        u.state     = 'ATTACK_MOVING';
+                        u.target    = null;
+                    } else {
+                        const uTile = map.worldToTile(u.x, u.y);
+                        const path  = CatWar.Pathfinding.findPath(
+                            uTile.tx, uTile.ty, tile.tx, tile.ty,
+                            { ignoreThrottle: true, factionId: u.faction }
+                        );
+                        u.path      = path;
+                        u.pathIndex = 0;
+                        u.state     = 'ATTACK_MOVING';
+                        u.target    = null;
+                    }
                 }
                 break;
             }
@@ -581,6 +612,7 @@ CatWar.Game = (function () {
         for (let i = 0; i < units.length; i++) {
             const u = units[i];
             if (!u.alive || u.hp <= 0) continue;
+            if (u.isFlyer) continue; // flyers are high in the air
 
             let pushX = 0;
             let pushY = 0;
@@ -590,6 +622,7 @@ CatWar.Game = (function () {
                 if (i === j) continue;
                 const u2 = units[j];
                 if (!u2.alive || u2.hp <= 0) continue;
+                if (u2.isFlyer) continue; // ignore flyers in the air
 
                 const dx = u.x - u2.x;
                 const dy = u.y - u2.y;
@@ -763,9 +796,10 @@ CatWar.Game = (function () {
                 y:      attacker.y,
                 target: target,
                 damage: damage,
-                speed:  cfg.COMBAT.PROJECTILE_SPEED * cfg.TILE_SIZE,
+                speed:  attacker.type === 'BIPLANE' ? cfg.COMBAT.PROJECTILE_SPEED * cfg.TILE_SIZE * 1.5 : cfg.COMBAT.PROJECTILE_SPEED * cfg.TILE_SIZE,
                 type:   attacker.type === 'CATAPULT' ? 'boulder' :
-                        (attacker.type === 'CROSSBOW' ? 'bolt' : 'arrow'),
+                        (attacker.type === 'CROSSBOW' ? 'bolt' :
+                         (attacker.type === 'BIPLANE' ? 'bullet' : 'arrow')),
                 angle:  Math.atan2(target.y - attacker.y, target.x - attacker.x),
                 aoeRadius: uStats.aoeRadius ? uStats.aoeRadius * cfg.TILE_SIZE : 0,
                 faction: attacker.faction
@@ -1188,13 +1222,17 @@ CatWar.Game = (function () {
                     if (b.rallyX !== undefined) {
                         const newUnit = units[units.length - 1];
                         const map = CatWar.Map;
-                        if (map) {
-                            const uTile = map.worldToTile(newUnit.x, newUnit.y);
+                        if (map && newUnit) {
                             const rTile = map.worldToTile(b.rallyX, b.rallyY);
-                            newUnit.path = CatWar.Pathfinding.findPath(
-                                uTile.tx, uTile.ty, rTile.tx, rTile.ty,
-                                { ignoreThrottle: true, factionId: newUnit.faction }
-                            );
+                            if (newUnit.isFlyer) {
+                                newUnit.path = [{ x: rTile.tx, y: rTile.ty }];
+                            } else {
+                                const uTile = map.worldToTile(newUnit.x, newUnit.y);
+                                newUnit.path = CatWar.Pathfinding.findPath(
+                                    uTile.tx, uTile.ty, rTile.tx, rTile.ty,
+                                    { ignoreThrottle: true, factionId: newUnit.faction }
+                                );
+                            }
                             newUnit.pathIndex = 0;
                             newUnit.state = 'MOVING';
                         }

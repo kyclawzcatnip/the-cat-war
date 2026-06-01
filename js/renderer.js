@@ -635,7 +635,12 @@ CatWar.Renderer = (function () {
                 if (!map.isTileVisible(tile.tx, tile.ty, pf)) continue;
             }
             ctx.beginPath();
-            ctx.ellipse(u.x, u.y + 8, 7, 3, 0, 0, Math.PI * 2);
+            if (u.isFlyer) {
+                // High-altitude shadow (offset further down, slightly smaller)
+                ctx.ellipse(u.x, u.y + 15, 6, 2.5, 0, 0, Math.PI * 2);
+            } else {
+                ctx.ellipse(u.x, u.y + 8, 7, 3, 0, 0, Math.PI * 2);
+            }
             ctx.fill();
         }
     }
@@ -663,10 +668,11 @@ CatWar.Renderer = (function () {
 
             if (CatWar.Sprites && CatWar.Sprites.drawCat) {
                 const dir = u.facingAngle !== undefined ? (Math.cos(u.facingAngle) >= 0 ? 1 : -1) : 1;
+                const drawY = u.isFlyer ? u.y - 20 : u.y;
                 CatWar.Sprites.drawCat(
                     ctx,
                     u.x,
-                    u.y,
+                    drawY,
                     u.type,
                     u.faction,
                     dir,
@@ -899,6 +905,16 @@ CatWar.Renderer = (function () {
                     ctx.fill();
                     ctx.strokeStyle = '#555';
                     ctx.lineWidth = 1;
+                    ctx.stroke();
+                    break;
+
+                case 'bullet':
+                    ctx.rotate(p.angle || 0);
+                    ctx.strokeStyle = '#FFD700'; // shiny gold tracer
+                    ctx.lineWidth = 1.5;
+                    ctx.beginPath();
+                    ctx.moveTo(-10, 0);
+                    ctx.lineTo(4, 0);
                     ctx.stroke();
                     break;
 
@@ -1137,6 +1153,7 @@ CatWar.Renderer = (function () {
         KNIGHT:           { icon: '🛡️', label: 'Knight' },
         ARCHER:           { icon: '🏹', label: 'Archer' },
         CROSSBOW:         { icon: '🎯', label: 'Crossbow' },
+        BIPLANE:          { icon: '🛩️', label: 'Biplane Cat' },
         CAVALRY:          { icon: '🐴', label: 'Cavalry' },
         CATAPULT:         { icon: '💥', label: 'Catapult' },
         HEALER:           { icon: '💚', label: 'Healer' },

@@ -211,6 +211,22 @@ CatWar.Units = (function () {
       visionRange: 8 * 32,   // 8 tiles vision (normal is 5)
       canDetectStealth: true,
       autoExplore: true
+    },
+
+    BIPLANE: {
+      hp: 35,
+      damage: 6,
+      speed: 112,   // 3.5 * 32 pixels/sec
+      range: 6 * 32, // 6 tiles range
+      armor: 1,
+      attackCooldown: 1.2,
+      cost: { gold: 120, wood: 80, stone: 0, food: 20 },
+      trainTime: 28,
+      width: 28,
+      height: 28,
+      isRanged: true,
+      isFlyer: true,
+      projectileType: 'BULLET'
     }
   };
 
@@ -264,6 +280,9 @@ CatWar.Units = (function () {
 
     // Charge (cavalry)
     unit.chargeBonus = !!def.chargeBonus;
+
+    // Flyer
+    unit.isFlyer = !!def.isFlyer;
 
     // Healer
     if (def.isHealer) {
