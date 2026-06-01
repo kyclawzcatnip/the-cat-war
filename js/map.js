@@ -690,17 +690,14 @@ CatWar.Map = (function () {
             }
         }
 
-        // Set the fogGrid alias to the player's grid for easy renderer access
-        const game = window.CatWar && window.CatWar.Game;
-        if (!game || faction === game.playerFaction) {
-            fogGrid = fGrid;
-        }
     }
 
     /** Reveal entire map for a faction (debug / cheat). */
     function revealAll(faction) {
         const cfg = CFG();
-        const fGrid = faction ? fogGrids[faction] : fogGrid;
+        const game = window.CatWar && window.CatWar.Game;
+        const pf = game ? game.playerFaction : 'LION';
+        const fGrid = faction ? fogGrids[faction] : (fogGrids[pf] || fogGrids['LION']);
         if (!fGrid) return;
         for (let y = 0; y < cfg.MAP_HEIGHT; y++) {
             for (let x = 0; x < cfg.MAP_WIDTH; x++) {
@@ -713,8 +710,11 @@ CatWar.Map = (function () {
     function getFog(tx, ty) {
         const cfg = CFG();
         if (tx < 0 || tx >= cfg.MAP_WIDTH || ty < 0 || ty >= cfg.MAP_HEIGHT) return cfg.FOG.HIDDEN;
-        if (!fogGrid) return cfg.FOG.HIDDEN;
-        return fogGrid[ty][tx];
+        const game = window.CatWar && window.CatWar.Game;
+        const pf = game ? game.playerFaction : 'LION';
+        const fGrid = fogGrids[pf] || fogGrids['LION'];
+        if (!fGrid) return cfg.FOG.HIDDEN;
+        return fGrid[ty][tx];
     }
 
     /** Get fog state for a specific faction. */
@@ -749,7 +749,11 @@ CatWar.Map = (function () {
 
         // Data access (direct references for renderers)
         get grid()           { return grid; },
-        get fogGrid()        { return fogGrid; },
+        get fogGrid()        {
+            const game = window.CatWar && window.CatWar.Game;
+            const pf = game ? game.playerFaction : 'LION';
+            return fogGrids[pf] || fogGrids['LION'] || null;
+        },
         get fogGrids()       { return fogGrids; },
         get resourceData()   { return resourceData; },
         get decorations()    { return decorations; },
