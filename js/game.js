@@ -161,7 +161,10 @@ CatWar.Game = (function () {
                 const miner = _createUnit('HEAD_MINER', fk,
                             sp.tx * ts + (m * 20 - 10),
                             (sp.ty + 2) * ts + m * 10);
-                if (miner) startMiners.push(miner);
+                if (miner) {
+                    miner.minePreference = 'auto';
+                    startMiners.push(miner);
+                }
             }
 
             // Siamese bonus: 1 free Scout with +20% speed
@@ -412,6 +415,10 @@ CatWar.Game = (function () {
                     u.path   = null;
                     u.target = null;
                     u.state  = 'IDLE';
+                    if (u.type === 'PEASANT' || u.type === 'HEAD_MINER') {
+                        u.minePreference = 'none';
+                        u.gatherTarget = null;
+                    }
                 }
                 break;
             }
@@ -1397,6 +1404,9 @@ CatWar.Game = (function () {
                 const isWorker = u.type === 'HEAD_MINER' || u.type === 'PEASANT';
 
                 if (isWorker) {
+                    if (isPlayer) {
+                        if (!u.minePreference || u.minePreference === 'none') continue;
+                    }
                     // Auto-gather: find nearest resource within 12 tiles of Castle Keep
                     const castle = factionBuildings.find(b => b.buildingType === 'CASTLE_KEEP');
                     const castleTile = castle ? map.worldToTile(castle.x + castle.width / 2, castle.y + castle.height / 2) : null;
