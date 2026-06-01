@@ -13,10 +13,10 @@ CatWar.Config = (function () {
 
     // ─── Core Display & World ────────────────────────────────────────
     const TILE_SIZE    = 32;
-    const MAP_WIDTH    = 80;   // tiles
-    const MAP_HEIGHT   = 80;   // tiles
-    const WORLD_WIDTH  = MAP_WIDTH  * TILE_SIZE;  // 2560 px
-    const WORLD_HEIGHT = MAP_HEIGHT * TILE_SIZE;   // 2560 px
+    const MAP_WIDTH    = 150;   // tiles
+    const MAP_HEIGHT   = 150;   // tiles
+    const WORLD_WIDTH  = MAP_WIDTH  * TILE_SIZE;  // 4800 px
+    const WORLD_HEIGHT = MAP_HEIGHT * TILE_SIZE;   // 4800 px
 
     // ─── Camera ──────────────────────────────────────────────────────
     const CAMERA_SPEED            = 8;     // px per frame when scrolling
