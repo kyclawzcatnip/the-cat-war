@@ -498,6 +498,12 @@ CatWar.Game = (function () {
             // Attack cooldown
             if (u.attackCooldown > 0) u.attackCooldown -= dt;
 
+            // Farmer Cat behavior override
+            if (u.type === 'FARMER') {
+                _updateFarmerCat(u, dt);
+                continue;
+            }
+
             // State machine
             switch (u.state) {
                 case 'IDLE':
@@ -846,6 +852,170 @@ CatWar.Game = (function () {
         }
     }
 
+    function _updateFarmerCat(u, dt) {
+        const cfg = CFG();
+        const ts  = cfg.TILE_SIZE;
+        const map = CatWar.Map;
+        if (!map) return;
+
+        // If the associated farm is destroyed, find a new friendly farm!
+        if (!u.associatedFarm || !u.associatedFarm.alive || u.associatedFarm.hp <= 0) {
+            const friendlyFarms = buildings.filter(b => b.alive && b.buildingType === 'FARM' && b.faction === u.faction);
+            if (friendlyFarms.length > 0) {
+                // Link to the farm that has no farmer, or just a random one
+                const freeFarm = friendlyFarms.find(b => !b.farmer || !b.farmer.alive);
+                u.associatedFarm = freeFarm || friendlyFarms[0];
+                if (u.associatedFarm) u.associatedFarm.farmer = u;
+            } else {
+                // No farms left — walk back to castle and stand idle
+                u.state = 'IDLE';
+                _updateFarmerIdle(u, dt);
+                return;
+            }
+        }
+
+        const farm = u.associatedFarm;
+
+        if (u.carrying === undefined) u.carrying = 0;
+
+        if (u.state === 'IDLE') {
+            u.state = 'GATHERING';
+        }
+
+        if (u.state === 'GATHERING') {
+            // Move to farm
+            const fx = farm.x + farm.width / 2;
+            const fy = farm.y + farm.height / 2;
+            const dist = Math.hypot(fx - u.x, fy - u.y);
+
+            if (dist > ts * 2) {
+                // Pathfind to farm
+                if (!u.path || u.path.length === 0) {
+                    const uTile = map.worldToTile(u.x, u.y);
+                    const fTile = map.worldToTile(fx, fy);
+                    u.path = CatWar.Pathfinding.findPath(
+                        uTile.tx, uTile.ty, fTile.tx, fTile.ty,
+                        { ignoreThrottle: true, factionId: u.faction }
+                    );
+                    u.pathIndex = 0;
+                    if (!u.path) {
+                        // fallback direct walk
+                        const speed = u.speed * ts * dt;
+                        u.x += ((fx - u.x) / dist) * speed;
+                        u.y += ((fy - u.y) / dist) * speed;
+                    }
+                } else {
+                    _moveAlongPath(u, dt);
+                }
+            } else {
+                // At farm — harvest food
+                u.path = null;
+                const harvestRate = 4 * dt; // harvest up to 4 food per second
+                const take = Math.min(harvestRate, farm.accumulatedFood || 0, 10 - u.carrying);
+
+                if (take > 0) {
+                    farm.accumulatedFood = (farm.accumulatedFood || 0) - take;
+                    u.carrying += take;
+                }
+
+                if (u.carrying >= 10 || (u.carrying > 0 && (!farm.accumulatedFood || farm.accumulatedFood < 0.1))) {
+                    u.state = 'RETURNING';
+                }
+            }
+        } else if (u.state === 'RETURNING') {
+            // Find nearest completed Castle Keep to drop off food
+            let castle = null;
+            let bestDist = Infinity;
+            for (const b of buildings) {
+                if (b.faction !== u.faction || b.hp <= 0) continue;
+                if (b.buildingType !== 'CASTLE_KEEP') continue;
+                const dist = Math.hypot((b.x + b.width / 2) - u.x, (b.y + b.height / 2) - u.y);
+                if (dist < bestDist) {
+                    bestDist = dist;
+                    castle = b;
+                }
+            }
+
+            if (!castle) {
+                // Castle destroyed! Just stand idle
+                u.state = 'IDLE';
+                return;
+            }
+
+            const cx = castle.x + castle.width / 2;
+            const cy = castle.y + castle.height / 2;
+            const dist = Math.hypot(cx - u.x, cy - u.y);
+
+            if (dist > ts * 2.5) {
+                // Pathfind to castle
+                if (!u.path || u.path.length === 0) {
+                    const uTile = map.worldToTile(u.x, u.y);
+                    const cTile = map.worldToTile(cx, cy);
+                    u.path = CatWar.Pathfinding.findPath(
+                        uTile.tx, uTile.ty, cTile.tx, cTile.ty,
+                        { ignoreThrottle: true, factionId: u.faction }
+                    );
+                    u.pathIndex = 0;
+                    if (!u.path) {
+                        // fallback direct walk
+                        const speed = u.speed * ts * dt;
+                        u.x += ((cx - u.x) / dist) * speed;
+                        u.y += ((cy - u.y) / dist) * speed;
+                    }
+                } else {
+                    _moveAlongPath(u, dt);
+                }
+            } else {
+                // At Castle Keep — deposit food!
+                u.path = null;
+                const res = factionResources[u.faction];
+                if (res) {
+                    res.food = (res.food || 0) + u.carrying;
+                }
+
+                // Float text for food dropoff if it's the player faction
+                if (u.faction === playerFaction && u.carrying >= 1) {
+                    addParticle({
+                        x: u.x, y: u.y - 12,
+                        vx: 0, vy: -15,
+                        life: 0.8,
+                        alpha: 1,
+                        type: 'text',
+                        text: `+${Math.floor(u.carrying)} 🌾`,
+                        color: '#9ACD32',
+                        size: 13
+                    });
+                }
+
+                u.carrying = 0;
+                u.state = 'GATHERING';
+            }
+        }
+    }
+
+    function _updateFarmerIdle(u, dt) {
+        // Walk back to the nearest castle
+        const ts = CFG().TILE_SIZE;
+        let castle = null;
+        let bestDist = Infinity;
+        for (const b of buildings) {
+            if (b.faction !== u.faction || b.hp <= 0) continue;
+            if (b.buildingType === 'CASTLE_KEEP') {
+                const dist = Math.hypot((b.x + b.width / 2) - u.x, (b.y + b.height / 2) - u.y);
+                if (dist < bestDist) { bestDist = dist; castle = b; }
+            }
+        }
+        if (!castle) return;
+        const cx = castle.x + castle.width / 2;
+        const cy = castle.y + castle.height + 16;
+        const dist = Math.hypot(cx - u.x, cy - u.y);
+        if (dist > ts * 1.5) {
+            const speed = u.speed * ts * dt;
+            u.x += ((cx - u.x) / dist) * speed;
+            u.y += ((cy - u.y) / dist) * speed;
+        }
+    }
+
     function _updateBuildings(dt) {
         const cfg = CFG();
 
@@ -971,12 +1141,20 @@ CatWar.Game = (function () {
                 }
             }
 
-            // Farm food production
-            const bCfg = cfg.BUILDINGS[b.buildingType];
-            if (bCfg && bCfg.foodPerMin && b.constructionProgress >= 1.0) {
-                const res = factionResources[b.faction];
-                if (res) {
-                    res.food += (bCfg.foodPerMin / 60) * dt;
+            // Farm food production (Farmer Cats carry and deliver the food)
+            if (b.buildingType === 'FARM' && b.constructionProgress >= 1.0) {
+                b.accumulatedFood = (b.accumulatedFood || 0) + (10 / 60) * dt; // 10 food per minute
+                if (b.accumulatedFood > 50) b.accumulatedFood = 50; // cap local storage
+
+                // Spawn a farmer cat if they are dead or missing!
+                if (!b.farmer || !b.farmer.alive || b.farmer.hp <= 0) {
+                    const spawnX = b.x + b.width / 2;
+                    const spawnY = b.y + b.height + 8;
+                    const farmer = _createUnit('FARMER', b.faction, spawnX, spawnY);
+                    if (farmer) {
+                        b.farmer = farmer;
+                        farmer.associatedFarm = b;
+                    }
                 }
             }
 

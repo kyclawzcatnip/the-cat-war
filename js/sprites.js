@@ -318,6 +318,56 @@ CatWar.Sprites = (function () {
     ctx.restore();
   };
 
+  // ----------- FARMER -----------
+  unitDrawers.FARMER = function (ctx, dir, frame, fur, fc, s, state) {
+    drawCatBase(ctx, dir, frame, fur, fc, s);
+    var d = dir || 1;
+    var bob = Math.sin((frame || 0) * Math.PI / 2) * 1.5 * s;
+    ctx.save();
+    ctx.scale(d, 1);
+
+    // Green/brown rural tunic
+    roundRect(ctx, -3 * s, 0 * s + bob, 12 * s, 6 * s, 1, '#8fbc8f');
+    // Belt
+    px(ctx, -3 * s, 4 * s + bob, 12 * s, 1.5 * s, '#8b4513');
+
+    // Straw Hat (on head)
+    ctx.save();
+    ctx.translate(3 * s, -14 * s + bob);
+    // Brim
+    px(ctx, -10 * s, 0 * s, 21 * s, 2 * s, '#deb887');
+    // Crown
+    roundRect(ctx, -5 * s, -4 * s, 11 * s, 4 * s, 1, '#d2b48c');
+    // Red band on hat
+    px(ctx, -5 * s, -1 * s, 11 * s, 1 * s, '#ff4444');
+    ctx.restore();
+
+    // Pitchfork or Wheat Bundle
+    var harvestSwing = state === 'GATHERING' ? Math.sin(frame * Math.PI) * 0.6 : 0.2;
+    ctx.save();
+    ctx.translate(10 * s, -3 * s + bob);
+    ctx.rotate(harvestSwing);
+
+    // Wooden handle
+    px(ctx, 0, 0, 1.2 * s, 10 * s, '#a0522d');
+
+    if (state === 'RETURNING') {
+      // Carrying a cute bundle of wheat!
+      px(ctx, -4 * s, -4 * s, 9 * s, 5 * s, '#ffd700'); // golden wheat bundle
+      px(ctx, -2 * s, -5 * s, 5 * s, 1 * s, '#daa520'); // stalks
+      px(ctx, -1 * s, -1 * s, 3 * s, 2 * s, '#8b4513'); // tie
+    } else {
+      // Holding a pitchfork!
+      px(ctx, -2 * s, -2 * s, 5 * s, 2 * s, '#c0c0c0'); // metal base
+      px(ctx, -2 * s, -5 * s, 1 * s, 4 * s, '#c0c0c0'); // tine 1
+      px(ctx, 0, -6 * s, 1 * s, 5 * s, '#c0c0c0');     // tine 2
+      px(ctx, 2 * s, -5 * s, 1 * s, 4 * s, '#c0c0c0');  // tine 3
+    }
+    ctx.restore();
+
+    ctx.restore();
+  };
+
   // ----------- SWORDSCAT -----------
   unitDrawers.SWORDSCAT = function (ctx, dir, frame, fur, fc, s, state) {
     drawCatBase(ctx, dir, frame, fur, fc, s);

@@ -80,6 +80,17 @@ CatWar.Config = (function () {
             popCost:    1,
             description: 'Basic worker unit — gathers resources and constructs buildings'
         },
+        FARMER: {
+            hp:         20,
+            damage:     2,
+            speed:      2.0,
+            range:      0,
+            cost:       { gold: 40 },
+            trainTime:  15,
+            gatherRate: 1.0,
+            popCost:    1,
+            description: 'Farmer Cat — harvests food from farms and delivers it to the castle'
+        },
         SWORDSCAT: {
             hp:         40,
             damage:     6,

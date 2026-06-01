@@ -926,6 +926,12 @@ CatWar.Renderer = (function () {
                     ctx.fillText(p.text || '!', p.x - 3, p.y);
                     break;
 
+                case 'text':
+                    ctx.fillStyle = p.color || '#fff';
+                    ctx.font = p.size ? `bold ${p.size}px MedievalSharpCinzel, sans-serif` : 'bold 11px sans-serif';
+                    ctx.fillText(p.text || '', p.x, p.y);
+                    break;
+
                 case 'blood':
                     ctx.fillStyle = 'rgba(180, 20, 20, 0.7)';
                     ctx.beginPath();
