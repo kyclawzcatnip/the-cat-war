@@ -691,7 +691,10 @@ CatWar.Map = (function () {
         }
 
         // Set the fogGrid alias to the player's grid for easy renderer access
-        fogGrid = fGrid;
+        const game = window.CatWar && window.CatWar.Game;
+        if (!game || faction === game.playerFaction) {
+            fogGrid = fGrid;
+        }
     }
 
     /** Reveal entire map for a faction (debug / cheat). */
