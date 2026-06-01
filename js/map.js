@@ -21,6 +21,7 @@ CatWar.Map = (function () {
     let resourceData  = null;   // 2D array [row][col] of { amount, richness } or null
     let decorations   = null;   // sparse array of procedural decorations
     let spawnPositions = [];    // [{tx, ty}] — castle spawn locations (tile coords)
+    let buildingGrid  = null;   // 2D array [row][col] of building faction or null (blocks pathing)
 
     // RNG seed for deterministic generation
     let _seed = 1;
@@ -521,10 +522,12 @@ CatWar.Map = (function () {
         grid[ty][tx] = terrainId;
     }
 
-    /** Check if a tile is walkable. */
+    /** Check if a tile is walkable (terrain + buildings). */
     function isWalkable(tx, ty) {
         const cfg = CFG();
         if (tx < 0 || tx >= cfg.MAP_WIDTH || ty < 0 || ty >= cfg.MAP_HEIGHT) return false;
+        // Blocked by building?
+        if (buildingGrid && buildingGrid[ty][tx]) return false;
         const tileId  = grid[ty][tx];
         const tKey    = cfg.TERRAIN_BY_ID[tileId];
         const terrain = cfg.TERRAIN[tKey];
@@ -535,10 +538,46 @@ CatWar.Map = (function () {
     function getMovementCost(tx, ty) {
         const cfg = CFG();
         if (tx < 0 || tx >= cfg.MAP_WIDTH || ty < 0 || ty >= cfg.MAP_HEIGHT) return Infinity;
+        // Blocked by building?
+        if (buildingGrid && buildingGrid[ty][tx]) return Infinity;
         const tileId  = grid[ty][tx];
         const tKey    = cfg.TERRAIN_BY_ID[tileId];
         const terrain = cfg.TERRAIN[tKey];
         return terrain ? terrain.moveCost : Infinity;
+    }
+
+    /** Mark tiles as occupied by a building. */
+    function markBuilding(tileX, tileY, tileW, tileH, factionId) {
+        if (!buildingGrid) {
+            const cfg = CFG();
+            buildingGrid = [];
+            for (let y = 0; y < cfg.MAP_HEIGHT; y++) {
+                buildingGrid[y] = new Array(cfg.MAP_WIDTH).fill(null);
+            }
+        }
+        for (let dy = 0; dy < tileH; dy++) {
+            for (let dx = 0; dx < tileW; dx++) {
+                const bx = tileX + dx;
+                const by = tileY + dy;
+                if (by >= 0 && by < buildingGrid.length && bx >= 0 && bx < buildingGrid[0].length) {
+                    buildingGrid[by][bx] = factionId || true;
+                }
+            }
+        }
+    }
+
+    /** Clear tiles when a building is destroyed. */
+    function clearBuilding(tileX, tileY, tileW, tileH) {
+        if (!buildingGrid) return;
+        for (let dy = 0; dy < tileH; dy++) {
+            for (let dx = 0; dx < tileW; dx++) {
+                const bx = tileX + dx;
+                const by = tileY + dy;
+                if (by >= 0 && by < buildingGrid.length && bx >= 0 && bx < buildingGrid[0].length) {
+                    buildingGrid[by][bx] = null;
+                }
+            }
+        }
     }
 
     /** Convert world pixel coordinates to tile coordinates. */
@@ -781,7 +820,11 @@ CatWar.Map = (function () {
         getFog,
         getFogForFaction,
         isTileVisible,
-        isTileExplored
+        isTileExplored,
+
+        // Building occupancy
+        markBuilding,
+        clearBuilding
     };
 })();
 

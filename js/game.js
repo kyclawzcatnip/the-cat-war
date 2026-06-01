@@ -862,6 +862,15 @@ CatWar.Game = (function () {
                         alpha: 1
                     });
                 }
+                // Clear building tiles from pathfinding grid
+                const map = CatWar.Map;
+                const bCfgD = cfg.BUILDINGS[b.buildingType];
+                if (map && map.clearBuilding && bCfgD) {
+                    const ts = cfg.TILE_SIZE;
+                    const tx = Math.floor(b.x / ts);
+                    const ty = Math.floor(b.y / ts);
+                    map.clearBuilding(tx, ty, bCfgD.size.w, bCfgD.size.h);
+                }
                 buildings.splice(i, 1);
                 continue;
             }
@@ -1274,6 +1283,13 @@ CatWar.Game = (function () {
         };
 
         buildings.push(building);
+
+        // Mark tiles as occupied so pathfinding avoids them
+        const map = CatWar.Map;
+        if (map && map.markBuilding) {
+            map.markBuilding(tileX, tileY, bCfg.size.w, bCfg.size.h, faction);
+        }
+
         return building;
     }
 
