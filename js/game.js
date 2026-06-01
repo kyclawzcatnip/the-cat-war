@@ -592,12 +592,12 @@ CatWar.Game = (function () {
                     overlapCount++;
                     if (dist === 0) {
                         const angle = Math.random() * Math.PI * 2;
-                        pushX += Math.cos(angle) * 12;
-                        pushY += Math.sin(angle) * 12;
+                        pushX += Math.cos(angle) * 120;
+                        pushY += Math.sin(angle) * 120;
                     } else {
                         const strength = (radius - dist) / radius;
-                        pushX += (dx / dist) * strength * 25;
-                        pushY += (dy / dist) * strength * 25;
+                        pushX += (dx / dist) * strength * 150;
+                        pushY += (dy / dist) * strength * 150;
                     }
                 }
             }
@@ -896,8 +896,9 @@ CatWar.Game = (function () {
         const targetX = nearest.x + nearest.width / 2;
         const targetY = nearest.y + nearest.height / 2;
         const dist = Math.hypot(targetX - u.x, targetY - u.y);
+        const dropOffRange = Math.max(nearest.width, nearest.height) * 0.5 + ts * 1.2;
 
-        if (dist > ts * 2) {
+        if (dist > dropOffRange) {
             // Use pathfinding to return
             const map = CatWar.Map;
             if (!map) return;
