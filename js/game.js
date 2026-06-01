@@ -1005,6 +1005,21 @@ CatWar.Game = (function () {
                                 faction: b.faction
                             });
                             b.attackCooldown = cfg.COMBAT.ATTACK_COOLDOWN_BASE;
+
+                            // Alert all friendly cats within 15 tiles to attack this intruder!
+                            const alertRange = 15 * cfg.TILE_SIZE;
+                            for (const friend of units) {
+                                if (friend.faction !== b.faction || !friend.alive) continue;
+                                if (friend.state !== 'IDLE' && friend.state !== 'MOVING' && friend.state !== 'GATHERING') continue;
+                                if (friend.type === 'HEALER') continue;
+
+                                const fDist = Math.hypot(friend.x - bcx, friend.y - bcy);
+                                if (fDist <= alertRange) {
+                                    friend.target = enemy;
+                                    friend.state  = 'ATTACKING';
+                                    friend.path   = null;
+                                }
+                            }
                             break;
                         }
                     }
