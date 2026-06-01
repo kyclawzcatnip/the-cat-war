@@ -540,7 +540,9 @@ CatWar.Game = (function () {
         const cfg = CFG();
         const ts  = cfg.TILE_SIZE;
         if (!u.path || u.pathIndex >= u.path.length) {
-            u.state = 'IDLE';
+            if (u.state === 'MOVING' || u.state === 'ATTACK_MOVING') {
+                u.state = 'IDLE';
+            }
             u.path  = null;
             return;
         }
@@ -1165,7 +1167,7 @@ CatWar.Game = (function () {
                         const enemyBuildings = buildings.filter(
                             b => b.hp > 0 && b.faction !== fk
                         );
-                        if (enemyBuildings.length > 0 && Math.random() < 0.15) {
+                        if (enemyBuildings.length > 0 && Math.random() < 0.70) {
                             const target = enemyBuildings[Math.floor(Math.random() * enemyBuildings.length)];
                             const tileFrom = map.worldToTile(u.x, u.y);
                             const tileTo = map.worldToTile(
