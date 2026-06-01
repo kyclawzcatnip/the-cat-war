@@ -152,10 +152,12 @@ CatWar.Game = (function () {
             castle.constructionProgress = 1.0; // already built
 
             // 2 Head Miners near the castle
+            const startMiners = [];
             for (let m = 0; m < 2; m++) {
-                _createUnit('HEAD_MINER', fk,
+                const miner = _createUnit('HEAD_MINER', fk,
                             sp.tx * ts + (m * 20 - 10),
                             (sp.ty + 2) * ts + m * 10);
+                if (miner) startMiners.push(miner);
             }
 
             // Siamese bonus: 1 free Scout with +20% speed
@@ -165,6 +167,45 @@ CatWar.Game = (function () {
                                           (sp.ty + 2) * ts + 20);
                 if (scout) {
                     scout.speed = scout.speed * 1.2; // 3.5 * 1.2 = 4.2
+                }
+            }
+
+            // Auto-assign miners to nearest resource nodes
+            const map = CatWar.Map;
+            if (map && startMiners.length > 0) {
+                const usedTiles = new Set();
+                for (const miner of startMiners) {
+                    let bestDist = Infinity;
+                    let bestTX = -1, bestTY = -1;
+                    // Search nearby tiles for resources
+                    for (let dy = -10; dy <= 10; dy++) {
+                        for (let dx = -10; dx <= 10; dx++) {
+                            const rx = sp.tx + dx;
+                            const ry = sp.ty + dy;
+                            const tileKey = rx + ',' + ry;
+                            if (usedTiles.has(tileKey)) continue;
+                            const rd = map.getResourceData(rx, ry);
+                            if (rd && rd.amount > 0) {
+                                const dist = Math.hypot(dx, dy);
+                                if (dist < bestDist) {
+                                    bestDist = dist;
+                                    bestTX = rx;
+                                    bestTY = ry;
+                                }
+                            }
+                        }
+                    }
+                    if (bestTX >= 0) {
+                        usedTiles.add(bestTX + ',' + bestTY);
+                        miner.gatherTarget = {
+                            isResource: true,
+                            tx: bestTX,
+                            ty: bestTY,
+                            resource: map.getResourceData(bestTX, bestTY).resource,
+                            amount: map.getResourceData(bestTX, bestTY).amount
+                        };
+                        miner.state = 'GATHERING';
+                    }
                 }
             }
         }
@@ -268,7 +309,12 @@ CatWar.Game = (function () {
         // 7. Update particles
         _updateParticles(dt);
 
-        // 8. Update fog of war (every ~10 frames to save perf)
+        // 8. Simple AI for non-player factions (every ~2 seconds)
+        if (frameCount % 120 === 0) {
+            _updateSimpleAI();
+        }
+
+        // 9. Update fog of war (every ~10 frames to save perf)
         if (frameCount % 10 === 0) {
             const allEntities = [...units, ...buildings];
             // Update fog for ALL factions (AI needs its own fog for decision-making)
@@ -278,10 +324,10 @@ CatWar.Game = (function () {
             CatWar.Renderer.invalidateFog();
         }
 
-        // 9. Recalculate population
+        // 10. Recalculate population
         _recalcPopulation();
 
-        // 10. Check win/lose conditions
+        // 11. Check win/lose conditions
         _checkGameOver();
     }
 
@@ -942,6 +988,130 @@ CatWar.Game = (function () {
     }
 
     // ═══════════════════════════════════════════════════════════════
+    //  Simple AI — lightweight opponent behavior
+    // ═══════════════════════════════════════════════════════════════
+
+    function _updateSimpleAI() {
+        const cfg = CFG();
+        const map = CatWar.Map;
+        const ts  = cfg.TILE_SIZE;
+        if (!map) return;
+
+        for (const fk of activeFactions) {
+            if (fk === playerFaction) continue; // skip player
+
+            const factionUnits = units.filter(u => u.alive && u.faction === fk);
+            const factionBuildings = buildings.filter(b => b.hp > 0 && b.faction === fk);
+
+            for (const u of factionUnits) {
+                if (u.state !== 'IDLE') continue; // only manage idle units
+
+                const isWorker = u.type === 'HEAD_MINER' || u.type === 'PEASANT';
+
+                if (isWorker) {
+                    // Auto-gather: find nearest resource
+                    let bestDist = Infinity;
+                    let bestTX = -1, bestTY = -1;
+                    const uTile = map.worldToTile(u.x, u.y);
+
+                    for (let dy = -12; dy <= 12; dy++) {
+                        for (let dx = -12; dx <= 12; dx++) {
+                            const rx = uTile.tx + dx;
+                            const ry = uTile.ty + dy;
+                            if (rx < 0 || ry < 0 || rx >= cfg.MAP_WIDTH || ry >= cfg.MAP_HEIGHT) continue;
+                            const rd = map.getResourceData(rx, ry);
+                            if (rd && rd.amount > 0) {
+                                const dist = Math.hypot(dx, dy);
+                                if (dist < bestDist) {
+                                    bestDist = dist;
+                                    bestTX = rx;
+                                    bestTY = ry;
+                                }
+                            }
+                        }
+                    }
+
+                    if (bestTX >= 0) {
+                        u.gatherTarget = {
+                            isResource: true,
+                            tx: bestTX,
+                            ty: bestTY,
+                            resource: map.getResourceData(bestTX, bestTY).resource,
+                            amount: map.getResourceData(bestTX, bestTY).amount
+                        };
+                        u.state = 'GATHERING';
+                    }
+                } else {
+                    // Military unit: look for nearby enemies to attack
+                    let closestEnemy = null;
+                    let closestDist = cfg.COMBAT.AGGRO_RANGE * ts * 3; // wider scan range
+
+                    for (const enemy of units) {
+                        if (enemy.faction === fk || !enemy.alive) continue;
+                        const dist = Math.hypot(enemy.x - u.x, enemy.y - u.y);
+                        if (dist < closestDist) {
+                            closestDist = dist;
+                            closestEnemy = enemy;
+                        }
+                    }
+
+                    if (closestEnemy) {
+                        u.target = closestEnemy;
+                        u.state = 'ATTACKING';
+                    } else {
+                        // No nearby enemy — patrol toward a random enemy building
+                        const enemyBuildings = buildings.filter(
+                            b => b.hp > 0 && b.faction !== fk
+                        );
+                        if (enemyBuildings.length > 0 && Math.random() < 0.15) {
+                            const target = enemyBuildings[Math.floor(Math.random() * enemyBuildings.length)];
+                            const tileFrom = map.worldToTile(u.x, u.y);
+                            const tileTo = map.worldToTile(
+                                target.x + target.width / 2,
+                                target.y + target.height / 2
+                            );
+                            const path = CatWar.Pathfinding.findPath(
+                                tileFrom.tx, tileFrom.ty,
+                                tileTo.tx, tileTo.ty,
+                                { ignoreThrottle: true }
+                            );
+                            if (path) {
+                                u.path = path;
+                                u.pathIndex = 0;
+                                u.state = 'ATTACK_MOVING';
+                            }
+                        }
+                    }
+                }
+            }
+
+            // AI building: auto-train units from buildings with training capabilities
+            const res = factionResources[fk];
+            if (!res) continue;
+
+            for (const b of factionBuildings) {
+                if (b.constructionProgress !== undefined && b.constructionProgress < 1.0) continue;
+                const bCfg = cfg.BUILDINGS[b.buildingType];
+                if (!bCfg || !bCfg.trains || bCfg.trains.length === 0) continue;
+                if (!b.trainingQueue) continue;
+                if (b.trainingQueue.length > 0) continue; // already training
+
+                // Decide what to train
+                const trainOptions = bCfg.trains;
+                const unitType = trainOptions[Math.floor(Math.random() * trainOptions.length)];
+                const uCfg = cfg.UNITS[unitType];
+                if (!uCfg || !uCfg.cost) continue;
+
+                // Check if faction can afford
+                if (_canAfford(res, uCfg.cost)) {
+                    _deductCost(res, uCfg.cost);
+                    b.trainingQueue.push(unitType);
+                }
+            }
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
     //  Render
     // ═══════════════════════════════════════════════════════════════
 
@@ -1109,7 +1279,7 @@ CatWar.Game = (function () {
             if (!u.alive) continue;
             const dx = wx - u.x;
             const dy = wy - u.y;
-            if (Math.abs(dx) < 10 && Math.abs(dy) < 10) {
+            if (Math.abs(dx) < 16 && Math.abs(dy) < 16) {
                 return u;
             }
         }

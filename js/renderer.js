@@ -154,6 +154,11 @@ CatWar.Renderer = (function () {
             _renderResourceBar(game.playerResources, game.population, game.populationCap);
         }
 
+        // Building hotbar
+        if (game && game.state === 'PLAYING') {
+            _renderBuildHotbar(w, h, game);
+        }
+
         // Pause overlay
         if (game && game.state === 'PAUSED') {
             _renderPauseOverlay(w, h);
@@ -1023,6 +1028,340 @@ CatWar.Renderer = (function () {
     }
 
     // ═══════════════════════════════════════════════════════════════
+    //  Building Hotbar
+    // ═══════════════════════════════════════════════════════════════
+
+    // Hotbar state
+    const _hotbar = {
+        buttons: [],         // { key, x, y, w, h }
+        hoveredKey: null,
+        tooltipKey: null,
+        tooltipX: 0,
+        tooltipY: 0
+    };
+
+    // Building display info (icons drawn procedurally)
+    const BUILDING_ICONS = {
+        CASTLE_KEEP:    { icon: '🏰', label: 'Castle',       shortcut: '' },
+        BARRACKS:       { icon: '⚔️',  label: 'Barracks',     shortcut: 'B' },
+        ARCHERY_RANGE:  { icon: '🏹', label: 'Archery',      shortcut: 'R' },
+        BLACKSMITH:     { icon: '🔨', label: 'Blacksmith',   shortcut: 'K' },
+        STABLE:         { icon: '🐴', label: 'Stable',       shortcut: 'S' },
+        SIEGE_WORKSHOP: { icon: '💣', label: 'Siege',        shortcut: 'W' },
+        FARM:           { icon: '🌾', label: 'Farm',         shortcut: 'F' },
+        LUMBER_MILL:    { icon: '🪵', label: 'Lumber',       shortcut: 'L' },
+        STONE_QUARRY:   { icon: '⛏️',  label: 'Quarry',       shortcut: 'Q' },
+        WATCHTOWER:     { icon: '🗼', label: 'Tower',        shortcut: 'T' }
+    };
+
+    function _renderBuildHotbar(w, h, game) {
+        const cfg = CFG();
+        const inp = CatWar.Input;
+        const buildings = cfg.BUILDINGS;
+        const keys = Object.keys(buildings).filter(k => k !== 'CASTLE_KEEP');
+
+        const btnSize = 56;
+        const btnPad = 6;
+        const panelPad = 10;
+        const totalBtns = keys.length;
+        const panelH = totalBtns * (btnSize + btnPad) + panelPad * 2 - btnPad;
+        const panelW = btnSize + panelPad * 2 + 2;
+        const panelX = w - panelW - 8;
+        const panelY = Math.max(40, (h - panelH) / 2);
+
+        // Panel background
+        ctx.save();
+        ctx.fillStyle = 'rgba(15, 10, 5, 0.82)';
+        _drawRoundedRect(ctx, panelX, panelY, panelW, panelH, 8);
+        ctx.fill();
+
+        // Panel border
+        ctx.strokeStyle = '#8B6914';
+        ctx.lineWidth = 2;
+        _drawRoundedRect(ctx, panelX, panelY, panelW, panelH, 8);
+        ctx.stroke();
+
+        // Inner gold accent
+        ctx.strokeStyle = 'rgba(218, 165, 32, 0.25)';
+        ctx.lineWidth = 1;
+        _drawRoundedRect(ctx, panelX + 3, panelY + 3, panelW - 6, panelH - 6, 6);
+        ctx.stroke();
+
+        // Header label
+        ctx.font = 'bold 10px "Palatino Linotype", serif';
+        ctx.fillStyle = '#DAA520';
+        ctx.textAlign = 'center';
+        ctx.fillText('BUILD', panelX + panelW / 2, panelY - 3);
+        ctx.textAlign = 'start';
+
+        ctx.restore();
+
+        // Clear button list
+        _hotbar.buttons = [];
+
+        const playerRes = game.playerResources || {};
+
+        for (let i = 0; i < totalBtns; i++) {
+            const key = keys[i];
+            const bCfg = buildings[key];
+            const iconInfo = BUILDING_ICONS[key] || { icon: '🏠', label: key, shortcut: '' };
+
+            const bx = panelX + panelPad + 1;
+            const by = panelY + panelPad + i * (btnSize + btnPad);
+
+            const isHovered = _hotbar.hoveredKey === key;
+            const isActive = inp && inp.buildMode && inp.buildType === key;
+            const canAfford = bCfg.cost ? _canAffordBuilding(playerRes, bCfg.cost) : false;
+
+            // Button background
+            ctx.save();
+            _drawRoundedRect(ctx, bx, by, btnSize, btnSize, 5);
+
+            if (isActive) {
+                // Active build mode — gold highlight
+                const grad = ctx.createLinearGradient(bx, by, bx, by + btnSize);
+                grad.addColorStop(0, 'rgba(255, 215, 0, 0.5)');
+                grad.addColorStop(1, 'rgba(184, 134, 11, 0.4)');
+                ctx.fillStyle = grad;
+            } else if (isHovered && canAfford) {
+                ctx.fillStyle = 'rgba(218, 165, 32, 0.3)';
+            } else if (isHovered && !canAfford) {
+                ctx.fillStyle = 'rgba(204, 51, 51, 0.25)';
+            } else {
+                ctx.fillStyle = 'rgba(60, 40, 25, 0.6)';
+            }
+            ctx.fill();
+
+            // Button border
+            _drawRoundedRect(ctx, bx, by, btnSize, btnSize, 5);
+            if (isActive) {
+                ctx.strokeStyle = '#FFD700';
+                ctx.lineWidth = 2;
+            } else if (isHovered) {
+                ctx.strokeStyle = '#DAA520';
+                ctx.lineWidth = 1.5;
+            } else {
+                ctx.strokeStyle = canAfford ? 'rgba(139, 105, 20, 0.6)' : 'rgba(100, 60, 60, 0.5)';
+                ctx.lineWidth = 1;
+            }
+            ctx.stroke();
+
+            // Icon (emoji)
+            ctx.font = '20px serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = canAfford ? '#FFFFFF' : '#666666';
+            ctx.fillText(iconInfo.icon, bx + btnSize / 2, by + btnSize / 2 - 6);
+
+            // Label
+            ctx.font = 'bold 9px "Palatino Linotype", serif';
+            ctx.fillStyle = canAfford ? '#D4B896' : '#555';
+            ctx.textBaseline = 'bottom';
+            ctx.fillText(iconInfo.label, bx + btnSize / 2, by + btnSize - 3);
+
+            // Shortcut key indicator (top-right corner)
+            if (iconInfo.shortcut) {
+                ctx.font = 'bold 8px monospace';
+                ctx.fillStyle = 'rgba(218, 165, 32, 0.6)';
+                ctx.textAlign = 'right';
+                ctx.textBaseline = 'top';
+                ctx.fillText(iconInfo.shortcut, bx + btnSize - 4, by + 3);
+            }
+
+            ctx.textAlign = 'start';
+            ctx.textBaseline = 'alphabetic';
+            ctx.restore();
+
+            // Register button for click detection
+            _hotbar.buttons.push({ key, x: bx, y: by, w: btnSize, h: btnSize });
+        }
+
+        // Draw tooltip if hovering
+        if (_hotbar.tooltipKey) {
+            _renderBuildTooltip(_hotbar.tooltipKey, _hotbar.tooltipX, _hotbar.tooltipY, playerRes);
+        }
+    }
+
+    function _renderBuildTooltip(key, mx, my, playerRes) {
+        const cfg = CFG();
+        const bCfg = cfg.BUILDINGS[key];
+        if (!bCfg) return;
+        const iconInfo = BUILDING_ICONS[key] || { icon: '🏠', label: key };
+
+        ctx.save();
+
+        // Gather tooltip lines
+        const title = iconInfo.label;
+        const desc = bCfg.description || '';
+        const lines = [title];
+        if (desc) lines.push(desc);
+
+        // Cost line
+        const costParts = [];
+        if (bCfg.cost) {
+            if (bCfg.cost.gold)  costParts.push(`🪙${bCfg.cost.gold}`);
+            if (bCfg.cost.wood)  costParts.push(`🪵${bCfg.cost.wood}`);
+            if (bCfg.cost.stone) costParts.push(`🪨${bCfg.cost.stone}`);
+        }
+        if (costParts.length > 0) lines.push('Cost: ' + costParts.join('  '));
+
+        // Stats
+        lines.push(`HP: ${bCfg.hp}  |  Size: ${bCfg.size.w}×${bCfg.size.h}`);
+        if (bCfg.trains && bCfg.trains.length > 0) {
+            lines.push('Trains: ' + bCfg.trains.map(t => t.replace(/_/g, ' ').toLowerCase()).join(', '));
+        }
+        if (bCfg.popProvided > 0) lines.push(`+${bCfg.popProvided} Population`);
+        if (bCfg.foodPerMin) lines.push(`Produces ${bCfg.foodPerMin} food/min`);
+        if (bCfg.gatherBonus) lines.push(`+${Math.round(bCfg.gatherBonus * 100)}% gather speed`);
+        if (bCfg.attackDamage) lines.push(`Tower Dmg: ${bCfg.attackDamage}  Range: ${bCfg.attackRange}`);
+
+        // Measure tooltip
+        ctx.font = '13px "Palatino Linotype", serif';
+        let maxW = 0;
+        for (const line of lines) {
+            maxW = Math.max(maxW, ctx.measureText(line).width);
+        }
+        const ttW = maxW + 20;
+        const ttH = lines.length * 18 + 14;
+
+        // Position (to the left of the cursor/panel)
+        let tx = mx - ttW - 12;
+        let ty = my - ttH / 2;
+        if (tx < 4) tx = mx + 12;
+        if (ty < 4) ty = 4;
+        if (ty + ttH > canvas.height - 4) ty = canvas.height - ttH - 4;
+
+        // Background
+        ctx.fillStyle = 'rgba(15, 10, 5, 0.94)';
+        _drawRoundedRect(ctx, tx, ty, ttW, ttH, 5);
+        ctx.fill();
+
+        // Border
+        ctx.strokeStyle = '#DAA520';
+        ctx.lineWidth = 1.5;
+        _drawRoundedRect(ctx, tx, ty, ttW, ttH, 5);
+        ctx.stroke();
+
+        // Text
+        let textY = ty + 16;
+        ctx.textAlign = 'left';
+
+        // Title (gold)
+        ctx.font = 'bold 13px "Palatino Linotype", serif';
+        ctx.fillStyle = '#FFD700';
+        ctx.fillText(lines[0], tx + 10, textY);
+        textY += 18;
+
+        // Remaining lines
+        ctx.font = '12px "Palatino Linotype", serif';
+        for (let i = 1; i < lines.length; i++) {
+            // Color cost line differently
+            if (lines[i].startsWith('Cost:')) {
+                const canAfford = _canAffordBuilding(playerRes, bCfg.cost);
+                ctx.fillStyle = canAfford ? '#80CC80' : '#CC5555';
+            } else {
+                ctx.fillStyle = '#C8B896';
+            }
+            ctx.fillText(lines[i], tx + 10, textY);
+            textY += 17;
+        }
+
+        ctx.restore();
+    }
+
+    function _canAffordBuilding(res, cost) {
+        if (!cost) return true;
+        if (cost.gold  && (res.gold  || 0) < cost.gold)  return false;
+        if (cost.wood  && (res.wood  || 0) < cost.wood)  return false;
+        if (cost.stone && (res.stone || 0) < cost.stone) return false;
+        return true;
+    }
+
+    function _drawRoundedRect(ctx, x, y, w, h, r) {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.lineTo(x + w - r, y);
+        ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+        ctx.lineTo(x + w, y + h - r);
+        ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+        ctx.lineTo(x + r, y + h);
+        ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+        ctx.lineTo(x, y + r);
+        ctx.quadraticCurveTo(x, y, x + r, y);
+        ctx.closePath();
+    }
+
+    /**
+     * Handle hotbar mouse move — update hover state.
+     * Call from input system each frame.
+     */
+    function hotbarHandleHover(screenX, screenY) {
+        _hotbar.hoveredKey = null;
+        _hotbar.tooltipKey = null;
+
+        for (const btn of _hotbar.buttons) {
+            if (screenX >= btn.x && screenX <= btn.x + btn.w &&
+                screenY >= btn.y && screenY <= btn.y + btn.h) {
+                _hotbar.hoveredKey = btn.key;
+                _hotbar.tooltipKey = btn.key;
+                _hotbar.tooltipX = btn.x;
+                _hotbar.tooltipY = btn.y + btn.h / 2;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Handle hotbar click — enter build mode for clicked building.
+     * @returns {boolean} true if click was consumed by the hotbar.
+     */
+    function hotbarHandleClick(screenX, screenY) {
+        for (const btn of _hotbar.buttons) {
+            if (screenX >= btn.x && screenX <= btn.x + btn.w &&
+                screenY >= btn.y && screenY <= btn.y + btn.h) {
+                const inp = CatWar.Input;
+                if (inp) {
+                    // Toggle: if already in build mode for this type, cancel
+                    if (inp.buildMode && inp.buildType === btn.key) {
+                        inp.cancelBuildMode();
+                    } else {
+                        inp.enterBuildMode(btn.key);
+                    }
+                }
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Check if a screen point is over the hotbar panel.
+     */
+    function isOverHotbar(screenX, screenY) {
+        for (const btn of _hotbar.buttons) {
+            if (screenX >= btn.x && screenX <= btn.x + btn.w &&
+                screenY >= btn.y && screenY <= btn.y + btn.h) {
+                return true;
+            }
+        }
+        // Also check if we're within the panel bounds (slightly wider check)
+        if (_hotbar.buttons.length > 0) {
+            const first = _hotbar.buttons[0];
+            const last = _hotbar.buttons[_hotbar.buttons.length - 1];
+            const panelX = first.x - 11;
+            const panelY = first.y - 10;
+            const panelW = first.w + 22;
+            const panelH = (last.y + last.h) - first.y + 20;
+            if (screenX >= panelX && screenX <= panelX + panelW &&
+                screenY >= panelY && screenY <= panelY + panelH) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // ═══════════════════════════════════════════════════════════════
     //  Color utilities
     // ═══════════════════════════════════════════════════════════════
 
@@ -1041,6 +1380,9 @@ CatWar.Renderer = (function () {
     return {
         init,
         render,
-        invalidateFog
+        invalidateFog,
+        hotbarHandleHover,
+        hotbarHandleClick,
+        isOverHotbar
     };
 })();

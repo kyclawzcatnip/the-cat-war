@@ -179,6 +179,11 @@ CatWar.Input = (function () {
         screenX = e.clientX - rect.left;
         screenY = e.clientY - rect.top;
 
+        // Update hotbar hover state
+        if (CatWar.Renderer && CatWar.Renderer.hotbarHandleHover) {
+            CatWar.Renderer.hotbarHandleHover(screenX, screenY);
+        }
+
         if (leftDown && !buildMode) {
             dragEndX = screenX;
             dragEndY = screenY;
@@ -247,7 +252,11 @@ CatWar.Input = (function () {
     // ═══════════════════════════════════════════════════════════════
 
     function _handleLeftClick(shiftHeld) {
-        // Check minimap first
+        // Check hotbar first
+        if (CatWar.Renderer && CatWar.Renderer.hotbarHandleClick &&
+            CatWar.Renderer.hotbarHandleClick(screenX, screenY)) return;
+
+        // Check minimap
         if (CatWar.Camera.handleMinimapClick(screenX, screenY)) return;
 
         const game = CatWar.Game;
@@ -322,6 +331,10 @@ CatWar.Input = (function () {
     }
 
     function _handleRightClick() {
+        // Don't issue commands when clicking over the hotbar
+        if (CatWar.Renderer && CatWar.Renderer.isOverHotbar &&
+            CatWar.Renderer.isOverHotbar(screenX, screenY)) return;
+
         if (selectedUnits.length === 0) return;
         const game = CatWar.Game;
         if (!game) return;
