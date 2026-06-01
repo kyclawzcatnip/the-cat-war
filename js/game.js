@@ -553,6 +553,78 @@ CatWar.Game = (function () {
                     break;
             }
         }
+
+        // Apply separation forces to prevent overlapping / cramming
+        _applySeparationForces(dt);
+    }
+
+    function _applySeparationForces(dt) {
+        const map = CatWar.Map;
+        if (!map) return;
+
+        const cfg = CFG();
+        const ts  = cfg.TILE_SIZE;
+        const radius = 16; // safe overlap threshold in pixels (half of a tile)
+
+        for (let i = 0; i < units.length; i++) {
+            const u = units[i];
+            if (!u.alive || u.hp <= 0) continue;
+
+            let pushX = 0;
+            let pushY = 0;
+            let overlapCount = 0;
+
+            for (let j = 0; j < units.length; j++) {
+                if (i === j) continue;
+                const u2 = units[j];
+                if (!u2.alive || u2.hp <= 0) continue;
+
+                const dx = u.x - u2.x;
+                const dy = u.y - u2.y;
+                const dist = Math.hypot(dx, dy);
+
+                if (dist < radius) {
+                    overlapCount++;
+                    if (dist === 0) {
+                        const angle = Math.random() * Math.PI * 2;
+                        pushX += Math.cos(angle) * 12;
+                        pushY += Math.sin(angle) * 12;
+                    } else {
+                        const strength = (radius - dist) / radius;
+                        pushX += (dx / dist) * strength * 25;
+                        pushY += (dy / dist) * strength * 25;
+                    }
+                }
+            }
+
+            if (overlapCount > 0) {
+                const newX = u.x + pushX * dt;
+                const newY = u.y + pushY * dt;
+
+                const minCoord = ts * 0.5;
+                const maxCoordX = (cfg.MAP_WIDTH - 0.5) * ts;
+                const maxCoordY = (cfg.MAP_HEIGHT - 0.5) * ts;
+
+                const clampedX = Math.max(minCoord, Math.min(maxCoordX, newX));
+                const clampedY = Math.max(minCoord, Math.min(maxCoordY, newY));
+
+                const tile = map.worldToTile(clampedX, clampedY);
+                if (map.isWalkable(tile.tx, tile.ty, u.faction)) {
+                    u.x = clampedX;
+                    u.y = clampedY;
+                } else {
+                    const tileXOnly = map.worldToTile(clampedX, u.y);
+                    if (map.isWalkable(tileXOnly.tx, tileXOnly.ty, u.faction)) {
+                        u.x = clampedX;
+                    } else {
+                        const tileYOnly = map.worldToTile(u.x, clampedY);
+                        if (map.isWalkable(tileYOnly.tx, tileYOnly.ty, u.faction)) {
+                            u.y = clampedY;
+                        }
+                    }
+                }
+            }
+        }
     }
 
     function _moveAlongPath(u, dt) {
