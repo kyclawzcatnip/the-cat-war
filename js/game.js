@@ -692,7 +692,6 @@ CatWar.Game = (function () {
     }
 
     function _handleGathering(u, dt) {
-        // Placeholder: move to resource, gather, return
         if (!u.gatherTarget) {
             u.state = 'IDLE';
             return;
@@ -703,7 +702,7 @@ CatWar.Game = (function () {
         const map = CatWar.Map;
         if (!map) return;
 
-        // Move to resource
+        // Move to resource using pathfinding
         const tx = u.gatherTarget.tx !== undefined ? u.gatherTarget.tx : 0;
         const ty = u.gatherTarget.ty !== undefined ? u.gatherTarget.ty : 0;
         const targetWX = (tx + 0.5) * ts;
@@ -711,17 +710,34 @@ CatWar.Game = (function () {
         const dist = Math.hypot(targetWX - u.x, targetWY - u.y);
 
         if (dist > ts * 1.5) {
-            // Walk to resource
-            const speed = u.speed * ts * dt;
-            const dx = targetWX - u.x;
-            const dy = targetWY - u.y;
-            u.x += (dx / dist) * speed;
-            u.y += (dy / dist) * speed;
+            // Use pathfinding if we don't have a path yet
+            if (!u.path || u.path.length === 0) {
+                const uTile = map.worldToTile(u.x, u.y);
+                const path = CatWar.Pathfinding.findPath(
+                    uTile.tx, uTile.ty, tx, ty,
+                    { ignoreThrottle: true }
+                );
+                if (path && path.length > 0) {
+                    u.path = path;
+                    u.pathIndex = 0;
+                } else {
+                    // Can't reach resource — give up
+                    u.gatherTarget = null;
+                    u.state = 'IDLE';
+                    return;
+                }
+            }
+            // Follow path
+            _moveAlongPath(u, dt);
+            // If path finished but still far, re-path
+            if (!u.path && dist > ts * 1.5) {
+                u.state = 'GATHERING'; // will re-path next frame
+            }
         } else {
             // At resource — harvest
+            u.path = null; // clear path
             const uStats    = cfg.UNITS[u.type];
             const gatherAmt = (uStats.gatherRate || 1.0) * dt;
-            const richness  = map.getResourceRichness(tx, ty);
             const rd        = map.getResourceData(tx, ty);
 
             if (rd && rd.amount > 0) {
@@ -782,14 +798,33 @@ CatWar.Game = (function () {
         const dist = Math.hypot(targetX - u.x, targetY - u.y);
 
         if (dist > ts * 2) {
-            // Walk to building
-            const speed = u.speed * ts * dt;
-            const dx = targetX - u.x;
-            const dy = targetY - u.y;
-            u.x += (dx / dist) * speed;
-            u.y += (dy / dist) * speed;
+            // Use pathfinding to return
+            const map = CatWar.Map;
+            if (!map) return;
+            if (!u.path || u.path.length === 0) {
+                const uTile = map.worldToTile(u.x, u.y);
+                const bTile = map.worldToTile(targetX, targetY);
+                const path = CatWar.Pathfinding.findPath(
+                    uTile.tx, uTile.ty, bTile.tx, bTile.ty,
+                    { ignoreThrottle: true }
+                );
+                if (path && path.length > 0) {
+                    u.path = path;
+                    u.pathIndex = 0;
+                } else {
+                    // Direct walk as fallback
+                    const speed = u.speed * ts * dt;
+                    const dx = targetX - u.x;
+                    const dy = targetY - u.y;
+                    u.x += (dx / dist) * speed;
+                    u.y += (dy / dist) * speed;
+                    return;
+                }
+            }
+            _moveAlongPath(u, dt);
         } else {
             // Drop off resources
+            u.path = null;
             const res = factionResources[u.faction];
             if (res && u.carryResource) {
                 res[u.carryResource] = (res[u.carryResource] || 0) + u.carrying;
