@@ -485,6 +485,7 @@ CatWar.Input = (function () {
         if (!bCfg) { buildValid = false; return; }
 
         const tile = map.worldToTile(worldX, worldY);
+        buildValid = true;
         if (buildType === 'BRIDGE' || buildType === 'DRAWBRIDGE') {
             const tx = tile.tx;
             const ty = tile.ty;
