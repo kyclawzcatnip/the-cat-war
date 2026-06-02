@@ -1767,6 +1767,101 @@ CatWar.Game = (function () {
 
             if (isPlayer) continue; // skip player buildings & training
 
+            // AI Base Building expansion logic
+            const castle = factionBuildings.find(b => b.buildingType === 'CASTLE_KEEP');
+            if (castle && castle.constructionProgress >= 1.0) {
+                // Determine what buildings the AI has
+                const hasBarracks = factionBuildings.some(b => b.buildingType === 'BARRACKS');
+                const hasArchery  = factionBuildings.some(b => b.buildingType === 'ARCHERY_RANGE');
+                const hasStable   = factionBuildings.some(b => b.buildingType === 'STABLE');
+                const hasSiege    = factionBuildings.some(b => b.buildingType === 'SIEGE_WORKSHOP');
+                const hasLumber   = factionBuildings.some(b => b.buildingType === 'LUMBER_MILL');
+                const hasQuarry   = factionBuildings.some(b => b.buildingType === 'STONE_QUARRY');
+                const farmCount   = factionBuildings.filter(b => b.buildingType === 'FARM').length;
+                const towerCount  = factionBuildings.filter(b => b.buildingType === 'WATCHTOWER').length;
+
+                // Pick next desired building type
+                let desiredType = null;
+                if (farmCount < 2) {
+                    desiredType = 'FARM';
+                } else if (!hasBarracks) {
+                    desiredType = 'BARRACKS';
+                } else if (!hasArchery) {
+                    desiredType = 'ARCHERY_RANGE';
+                } else if (!hasLumber) {
+                    desiredType = 'LUMBER_MILL';
+                } else if (!hasQuarry) {
+                    desiredType = 'STONE_QUARRY';
+                } else if (!hasStable) {
+                    desiredType = 'STABLE';
+                } else if (!hasSiege) {
+                    desiredType = 'SIEGE_WORKSHOP';
+                } else if (towerCount < 2) {
+                    desiredType = 'WATCHTOWER';
+                } else if (farmCount < 4) {
+                    desiredType = 'FARM';
+                }
+
+                if (desiredType) {
+                    const bCfg = cfg.BUILDINGS[desiredType];
+                    const res = factionResources[fk];
+                    if (bCfg && bCfg.cost && _canAfford(res, bCfg.cost)) {
+                        // Find a suitable tile near the castle
+                        const tile = (function() {
+                            const cTile = map.worldToTile(castle.x + castle.width / 2, castle.y + castle.height / 2);
+                            const size = bCfg.size;
+                            const minR = 4, maxR = 10;
+                            for (let r = minR; r <= maxR; r++) {
+                                for (let dx = -r; dx <= r; dx++) {
+                                    for (let dy = -r; dy <= r; dy++) {
+                                        if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue;
+
+                                        const tx = cTile.tx + dx;
+                                        const ty = cTile.ty + dy;
+
+                                        if (tx < 0 || tx + size.w >= cfg.MAP_WIDTH || ty < 0 || ty + size.h >= cfg.MAP_HEIGHT) continue;
+
+                                        let valid = true;
+                                        for (let w = 0; w < size.w; w++) {
+                                            for (let h = 0; h < size.h; h++) {
+                                                const cx = tx + w;
+                                                const cy = ty + h;
+
+                                                if (!map.isWalkable(cx, cy)) {
+                                                    valid = false;
+                                                    break;
+                                                }
+
+                                                const entities = getEntitiesAtPoint(
+                                                    (cx + 0.5) * ts,
+                                                    (cy + 0.5) * ts
+                                                );
+                                                if (entities && (entities.isBuilding || entities.buildingType)) {
+                                                    valid = false;
+                                                    break;
+                                                }
+                                            }
+                                            if (!valid) break;
+                                        }
+
+                                        if (valid) {
+                                            return { tx, ty };
+                                        }
+                                    }
+                                }
+                            }
+                            return null;
+                        })();
+
+                        if (tile) {
+                            _deductCost(res, bCfg.cost);
+                            const newB = _createBuilding(desiredType, fk, tile.tx * ts, tile.ty * ts);
+                            newB.constructionProgress = 0;
+                        }
+                    }
+                }
+            }
+
             // AI building: auto-train units from buildings with training capabilities
             const res = factionResources[fk];
             if (!res) continue;
