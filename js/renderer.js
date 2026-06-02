@@ -1847,14 +1847,23 @@ CatWar.Renderer = (function () {
         const buildings = cfg.BUILDINGS;
         const keys = Object.keys(buildings).filter(k => k !== 'CASTLE_KEEP');
 
+        const cols = 2;
         const btnSize = 56;
         const btnPad = 6;
         const panelPad = 10;
         const totalBtns = keys.length;
-        const panelH = totalBtns * (btnSize + btnPad) + panelPad * 2 - btnPad;
-        const panelW = btnSize + panelPad * 2 + 2;
+        const rows = Math.ceil(totalBtns / cols);
+
+        const panelW = cols * btnSize + (cols - 1) * btnPad + panelPad * 2 + 2;
+        const panelH = rows * btnSize + (rows - 1) * btnPad + panelPad * 2;
         const panelX = w - panelW - 8;
         const panelY = Math.max(40, (h - panelH) / 2);
+
+        // Store panel coordinates for isOverHotbar check
+        _hotbar.panelX = panelX;
+        _hotbar.panelY = panelY;
+        _hotbar.panelW = panelW;
+        _hotbar.panelH = panelH;
 
         // Panel background
         ctx.save();
@@ -1893,8 +1902,11 @@ CatWar.Renderer = (function () {
             const bCfg = buildings[key];
             const iconInfo = BUILDING_ICONS[key] || { icon: '🏠', label: key, shortcut: '' };
 
-            const bx = panelX + panelPad + 1;
-            const by = panelY + panelPad + i * (btnSize + btnPad);
+            const c = i % cols;
+            const r = Math.floor(i / cols);
+
+            const bx = panelX + panelPad + 1 + c * (btnSize + btnPad);
+            const by = panelY + panelPad + r * (btnSize + btnPad);
 
             const isHovered = _hotbar.hoveredKey === key;
             const isActive = inp && inp.buildMode && inp.buildType === key;
@@ -2132,16 +2144,10 @@ CatWar.Renderer = (function () {
                 return true;
             }
         }
-        // Also check if we're within the panel bounds (slightly wider check)
-        if (_hotbar.buttons.length > 0) {
-            const first = _hotbar.buttons[0];
-            const last = _hotbar.buttons[_hotbar.buttons.length - 1];
-            const panelX = first.x - 11;
-            const panelY = first.y - 10;
-            const panelW = first.w + 22;
-            const panelH = (last.y + last.h) - first.y + 20;
-            if (screenX >= panelX && screenX <= panelX + panelW &&
-                screenY >= panelY && screenY <= panelY + panelH) {
+        // Also check if we're within the panel bounds (using the saved coordinates)
+        if (_hotbar.panelW !== undefined) {
+            if (screenX >= _hotbar.panelX && screenX <= _hotbar.panelX + _hotbar.panelW &&
+                screenY >= _hotbar.panelY && screenY <= _hotbar.panelY + _hotbar.panelH) {
                 return true;
             }
         }
