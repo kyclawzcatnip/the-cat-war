@@ -182,6 +182,18 @@ CatWar.Renderer = (function () {
             }
         }
 
+        // Transport panel (when a transport ship is selected)
+        if (game && game.state === 'PLAYING') {
+            const inp = CatWar.Input;
+            const ships = inp && inp.selectedUnits ? inp.selectedUnits.filter(u => u.alive && u.faction === game.playerFaction && u.type === 'TRANSPORT_SHIP') : [];
+            if (inp && (!inp.selectedBuilding) && ships.length > 0) {
+                _renderTransportPanel(w, h, inp.selectedUnits, game);
+            } else {
+                _transportPanel.visible = false;
+                _transportPanel.buttons = [];
+            }
+        }
+
         // Scout Enemy Castle Popup
         if (game && game.state === 'PLAYING') {
             if (_scoutPopup.visible) {
@@ -627,6 +639,7 @@ CatWar.Renderer = (function () {
 
         ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
         for (const u of units) {
+            if (u.loadedInShip) continue;
             if (!cam.isVisible(u.x - 16, u.y - 16, 32, 32)) continue;
 
             // Hide enemy units in fog
@@ -654,6 +667,7 @@ CatWar.Renderer = (function () {
         const pf   = game ? game.playerFaction : null;
 
         for (const u of sorted) {
+            if (u.loadedInShip) continue;
             if (!cam.isVisible(u.x - 16, u.y - 16, 32, 32)) continue;
 
             // Hide enemy units in fog
@@ -1074,19 +1088,7 @@ CatWar.Renderer = (function () {
     // ── 12. Fog of war ──────────────────────────────────────────
 
     function _renderFogOfWar(map, range, ts, cfg) {
-        if (!map.fogGrid) return;
-
-        for (let ty = range.startRow; ty <= range.endRow; ty++) {
-            for (let tx = range.startCol; tx <= range.endCol; tx++) {
-                const fogVal = map.fogGrid[ty][tx];
-                if (fogVal === cfg.FOG.VISIBLE) continue;
-
-                ctx.fillStyle = fogVal === cfg.FOG.HIDDEN
-                    ? `rgba(0, 0, 0, ${cfg.FOG.HIDDEN_ALPHA})`
-                    : `rgba(0, 0, 0, ${cfg.FOG.EXPLORED_ALPHA})`;
-                ctx.fillRect(tx * ts, ty * ts, ts, ts);
-            }
-        }
+        return; // Fog of war removed!
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -1167,6 +1169,11 @@ CatWar.Renderer = (function () {
 
     const _minerPanel = {
         buttons: [],    // { pref, x, y, w, h }
+        visible: false
+    };
+
+    const _transportPanel = {
+        buttons: [],    // { action, ship, x, y, w, h }
         visible: false
     };
 
@@ -1512,6 +1519,64 @@ CatWar.Renderer = (function () {
         }
     }
 
+    function _renderTransportPanel(w, h, selectedUnits, game) {
+        const pf = game.playerFaction;
+        const ships = selectedUnits.filter(u => u.alive && u.faction === pf && u.type === 'TRANSPORT_SHIP');
+        if (ships.length === 0) return;
+
+        const mainShip = ships[0];
+        _transportPanel.buttons = [];
+        _transportPanel.visible = true;
+
+        const panelH = 90;
+        const panelW = 340;
+        const panelX = (w - panelW) / 2;
+        const panelY = h - panelH - 8;
+
+        ctx.save();
+        ctx.fillStyle = 'rgba(15, 10, 5, 0.88)';
+        ctx.strokeStyle = '#DAA520';
+        ctx.lineWidth = 2;
+        _drawRoundedRect(ctx, panelX, panelY, panelW, panelH, 6);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#f4ecd8';
+        ctx.font = 'bold 13px "Palatino Linotype", "Book Antiqua", Palatino, serif';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+        ctx.fillText(`Transport Ship (ID: ${mainShip.id})`, panelX + 15, panelY + 15);
+
+        ctx.font = '11px "Palatino Linotype", serif';
+        ctx.fillStyle = '#bfa880';
+        const currentCargo = mainShip.cargo ? mainShip.cargo.length : 0;
+        const maxCargo = mainShip.maxCargo || 10;
+        ctx.fillText(`Cargo Capacity: ${currentCargo} / ${maxCargo} Cats`, panelX + 15, panelY + 35);
+
+        if (currentCargo > 0) {
+            const types = {};
+            for (const u of mainShip.cargo) {
+                types[u.type] = (types[u.type] || 0) + 1;
+            }
+            const cargoStr = Object.entries(types).map(([k, v]) => `${v}x ${k.replace('_', ' ')}`).join(', ');
+            ctx.fillText(`Loaded: ${cargoStr}`, panelX + 15, panelY + 55);
+        } else {
+            ctx.fillText('Status: Empty (Right-click units to load)', panelX + 15, panelY + 55);
+        }
+
+        const btnW = 85;
+        const btnH = 35;
+        const btnX = panelX + panelW - btnW - 15;
+        const btnY = panelY + (panelH - btnH) / 2;
+
+        const isHovered = _isPointInRect(CatWar.Input.screenX, CatWar.Input.screenY, btnX, btnY, btnW, btnH);
+        _drawMedievalButton(ctx, btnX, btnY, btnW, btnH, '⚓ Unload', isHovered);
+
+        _transportPanel.buttons.push({ action: 'unload', ship: mainShip, x: btnX, y: btnY, w: btnW, h: btnH });
+
+        ctx.restore();
+    }
+
     function minerPanelHandleClick(screenX, screenY) {
         if (!_minerPanel.visible) return false;
         for (const btn of _minerPanel.buttons) {
@@ -1562,6 +1627,32 @@ CatWar.Renderer = (function () {
     function isOverMinerPanel(screenX, screenY) {
         if (!_minerPanel.visible) return false;
         for (const btn of _minerPanel.buttons) {
+            if (_isPointInRect(screenX, screenY, btn.x, btn.y, btn.w, btn.h)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function transportPanelHandleClick(screenX, screenY) {
+        if (!_transportPanel.visible) return false;
+        for (const btn of _transportPanel.buttons) {
+            if (_isPointInRect(screenX, screenY, btn.x, btn.y, btn.w, btn.h)) {
+                if (btn.action === 'unload') {
+                    CatWar.Game.unloadShip(btn.ship);
+                    if (CatWar.Audio) {
+                        CatWar.Audio.playSound('meow');
+                    }
+                }
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function isOverTransportPanel(screenX, screenY) {
+        if (!_transportPanel.visible) return false;
+        for (const btn of _transportPanel.buttons) {
             if (_isPointInRect(screenX, screenY, btn.x, btn.y, btn.w, btn.h)) {
                 return true;
             }
@@ -1743,6 +1834,7 @@ CatWar.Renderer = (function () {
         LUMBER_MILL:    { icon: '🪵', label: 'Lumber',       shortcut: 'L' },
         STONE_QUARRY:   { icon: '⛏️',  label: 'Quarry',       shortcut: 'Q' },
         WATCHTOWER:     { icon: '🗼', label: 'Tower',        shortcut: 'T' },
+        DOCK:           { icon: '⚓', label: 'Dock',         shortcut: 'D' },
         WALL:           { icon: '🧱', label: 'Wall',         shortcut: 'W' },
         GATE:           { icon: '🚪', label: 'Gate',         shortcut: 'G' }
     };
@@ -2081,6 +2173,8 @@ CatWar.Renderer = (function () {
         isOverTrainPanel,
         minerPanelHandleClick,
         isOverMinerPanel,
+        transportPanelHandleClick,
+        isOverTransportPanel,
         showScoutPopup,
         scoutPopupHandleClick,
         isOverScoutPopup

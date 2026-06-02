@@ -146,13 +146,14 @@ CatWar.Map = (function () {
                 const elevation = _fbm(x, y, 20, 4);
                 const moisture  = _fbm(x + 100, y + 100, 18, 3);
 
-                if (elevation < 0.28) {
+                // Water covering most of the map (high elevation threshold)
+                if (elevation < 0.65) {
                     grid[y][x] = WATER_ID;
-                } else if (elevation < 0.32) {
+                } else if (elevation < 0.69) {
                     grid[y][x] = SAND_ID;
-                } else if (elevation > 0.78) {
+                } else if (elevation > 0.88) {
                     grid[y][x] = MOUNTAIN_ID;
-                } else if (moisture > 0.60 && elevation < 0.65) {
+                } else if (moisture > 0.60 && elevation < 0.82) {
                     grid[y][x] = FOREST_ID;
                 } else {
                     grid[y][x] = GRASS_ID;
@@ -179,7 +180,7 @@ CatWar.Map = (function () {
         spawnPositions = _calculateSpawnPositions(numFactions, W, H);
 
         // Clear area around each spawn (ensure walkable)
-        const CLEAR_RADIUS = 7;
+        const CLEAR_RADIUS = 13;
         for (const sp of spawnPositions) {
             for (let dy = -CLEAR_RADIUS; dy <= CLEAR_RADIUS; dy++) {
                 for (let dx = -CLEAR_RADIUS; dx <= CLEAR_RADIUS; dx++) {
@@ -524,7 +525,7 @@ CatWar.Map = (function () {
     }
 
     /** Check if a tile is walkable (terrain + buildings). */
-    function isWalkable(tx, ty, factionId) {
+    function isWalkable(tx, ty, factionId, isWaterOnly) {
         const cfg = CFG();
         if (tx < 0 || tx >= cfg.MAP_WIDTH || ty < 0 || ty >= cfg.MAP_HEIGHT) return false;
         // Blocked by building?
@@ -542,11 +543,19 @@ CatWar.Map = (function () {
         const tileId  = grid[ty][tx];
         const tKey    = cfg.TERRAIN_BY_ID[tileId];
         const terrain = cfg.TERRAIN[tKey];
-        return terrain ? terrain.walkable : false;
+        if (!terrain) return false;
+
+        if (isWaterOnly) {
+            // Ships can ONLY move on water!
+            return tKey === 'WATER';
+        } else {
+            // Ground units can walk on walkable terrain that is NOT water!
+            return terrain.walkable && tKey !== 'WATER';
+        }
     }
 
     /** Get movement cost for a tile. Returns Infinity for unwalkable. */
-    function getMovementCost(tx, ty, factionId) {
+    function getMovementCost(tx, ty, factionId, isWaterOnly) {
         const cfg = CFG();
         if (tx < 0 || tx >= cfg.MAP_WIDTH || ty < 0 || ty >= cfg.MAP_HEIGHT) return Infinity;
         // Blocked by building?
@@ -564,7 +573,13 @@ CatWar.Map = (function () {
         const tileId  = grid[ty][tx];
         const tKey    = cfg.TERRAIN_BY_ID[tileId];
         const terrain = cfg.TERRAIN[tKey];
-        return terrain ? terrain.moveCost : Infinity;
+        if (!terrain) return Infinity;
+
+        if (isWaterOnly) {
+            return tKey === 'WATER' ? 1.0 : Infinity;
+        } else {
+            return (terrain.walkable && tKey !== 'WATER') ? terrain.moveCost : Infinity;
+        }
     }
 
     /** Mark tiles as occupied by a building. */
@@ -788,15 +803,12 @@ CatWar.Map = (function () {
 
     /** Check if a tile is currently visible to a faction. */
     function isTileVisible(tx, ty, faction) {
-        const cfg = CFG();
-        return getFogForFaction(tx, ty, faction) === cfg.FOG.VISIBLE;
+        return true; // Fog of war removed!
     }
 
     /** Check if a tile has ever been explored by a faction. */
     function isTileExplored(tx, ty, faction) {
-        const fogVal = getFogForFaction(tx, ty, faction);
-        const cfg = CFG();
-        return fogVal === cfg.FOG.EXPLORED || fogVal === cfg.FOG.VISIBLE;
+        return true; // Fog of war removed!
     }
 
     // ═══════════════════════════════════════════════════════════════

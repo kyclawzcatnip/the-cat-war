@@ -208,6 +208,28 @@ CatWar.Config = (function () {
             canDetectStealth: true,
             popCost:    1,
             description: 'Fast scout — extended vision, detects stealth units'
+        },
+        TRANSPORT_SHIP: {
+            hp:         150,
+            damage:     0,
+            speed:      4.5,
+            range:      0,
+            cost:       { gold: 80, wood: 120 },
+            trainTime:  20,
+            popCost:    2,
+            isWaterOnly: true,
+            description: 'Coastal transport — carries up to 10 land units across water!'
+        },
+        WARSHIP: {
+            hp:         200,
+            damage:     8,
+            speed:      3.5,
+            range:      8,
+            cost:       { gold: 150, wood: 100 },
+            trainTime:  30,
+            popCost:    3,
+            isWaterOnly: true,
+            description: 'Reinforced warship — fires heavy arrow bolts at sea or land targets!'
         }
     };
 
@@ -321,6 +343,19 @@ CatWar.Config = (function () {
             claimRadius:  10,
             popProvided:  0,
             description: 'Defensive tower — attacks nearby enemies'
+        },
+        DOCK: {
+            hp:         600,
+            cost:       { gold: 150, wood: 100 },
+            buildTime:  25,
+            size:       { w: 2, h: 2 },
+            trains:     ['TRANSPORT_SHIP', 'WARSHIP'],
+            isDock:     true,
+            isDropOff:  true,
+            dropOffTypes: ['GOLD', 'WOOD', 'STONE'],
+            visionRange: 6,
+            popProvided: 0,
+            description: 'Coastal shipyard — drop-off point for all resources and trains naval vessels!'
         },
         WALL: {
             hp:         500,

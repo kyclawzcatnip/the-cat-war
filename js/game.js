@@ -352,6 +352,19 @@ CatWar.Game = (function () {
         const cfg = CFG();
 
         switch (cmd.type) {
+            case 'LOAD': {
+                const map = CatWar.Map;
+                if (!map || !cmd.target) break;
+                console.log('[GAME] LOAD command:', cmd.units.length, 'units into transport ship', cmd.target.id);
+                for (const u of cmd.units) {
+                    if (u.isWaterOnly) continue;
+                    u.target = cmd.target;
+                    u.state = 'LOADING';
+                    u.path = null;
+                }
+                break;
+            }
+
             case 'MOVE': {
                 const map = CatWar.Map;
                 if (!map) break;
@@ -370,7 +383,7 @@ CatWar.Game = (function () {
                         console.log('[GAME] Unit at tile', uTile.tx, uTile.ty, '→ target tile', tile.tx, tile.ty);
                         const path = CatWar.Pathfinding.findPath(
                             uTile.tx, uTile.ty, tile.tx, tile.ty,
-                            { ignoreThrottle: true, factionId: u.faction }
+                            { ignoreThrottle: true, factionId: u.faction, isWaterOnly: u.isWaterOnly }
                         );
                         console.log('[GAME] Path result:', path ? path.length + ' waypoints' : 'NULL');
                         u.path      = path;
@@ -430,7 +443,7 @@ CatWar.Game = (function () {
                         const uTile = map.worldToTile(u.x, u.y);
                         const path  = CatWar.Pathfinding.findPath(
                             uTile.tx, uTile.ty, tile.tx, tile.ty,
-                            { ignoreThrottle: true, factionId: u.faction }
+                            { ignoreThrottle: true, factionId: u.faction, isWaterOnly: u.isWaterOnly }
                         );
                         u.path      = path;
                         u.pathIndex = 0;
@@ -526,6 +539,9 @@ CatWar.Game = (function () {
         for (let i = units.length - 1; i >= 0; i--) {
             const u = units[i];
 
+            // Exclude loaded units from active updates
+            if (u.loadedInShip) continue;
+
             // Remove dead units
             if (!u.alive || u.hp <= 0) {
                 // Death particles
@@ -590,6 +606,10 @@ CatWar.Game = (function () {
                     _autoAggro(u);
                     break;
 
+                case 'LOADING':
+                    _handleLoading(u, dt);
+                    break;
+
                 case 'RETURNING':
                     // Returning gathered resources to nearest building
                     _handleReturn(u, dt);
@@ -632,12 +652,12 @@ CatWar.Game = (function () {
                     overlapCount++;
                     if (dist === 0) {
                         const angle = Math.random() * Math.PI * 2;
-                        pushX += Math.cos(angle) * 120;
-                        pushY += Math.sin(angle) * 120;
+                        pushX += Math.cos(angle) * 35;
+                        pushY += Math.sin(angle) * 35;
                     } else {
                         const strength = (radius - dist) / radius;
-                        pushX += (dx / dist) * strength * 150;
-                        pushY += (dy / dist) * strength * 150;
+                        pushX += (dx / dist) * strength * 35;
+                        pushY += (dy / dist) * strength * 35;
                     }
                 }
             }
@@ -654,16 +674,16 @@ CatWar.Game = (function () {
                 const clampedY = Math.max(minCoord, Math.min(maxCoordY, newY));
 
                 const tile = map.worldToTile(clampedX, clampedY);
-                if (map.isWalkable(tile.tx, tile.ty, u.faction)) {
+                if (map.isWalkable(tile.tx, tile.ty, u.faction, u.isWaterOnly)) {
                     u.x = clampedX;
                     u.y = clampedY;
                 } else {
                     const tileXOnly = map.worldToTile(clampedX, u.y);
-                    if (map.isWalkable(tileXOnly.tx, tileXOnly.ty, u.faction)) {
+                    if (map.isWalkable(tileXOnly.tx, tileXOnly.ty, u.faction, u.isWaterOnly)) {
                         u.x = clampedX;
                     } else {
                         const tileYOnly = map.worldToTile(u.x, clampedY);
-                        if (map.isWalkable(tileYOnly.tx, tileYOnly.ty, u.faction)) {
+                        if (map.isWalkable(tileYOnly.tx, tileYOnly.ty, u.faction, u.isWaterOnly)) {
                             u.y = clampedY;
                         }
                     }
@@ -715,6 +735,115 @@ CatWar.Game = (function () {
             // Face direction
             u.facingAngle = Math.atan2(dy, dx);
         }
+    }
+
+    function _handleLoading(u, dt) {
+        const ship = u.target;
+        if (!ship || !ship.alive || ship.hp <= 0) {
+            u.state = 'IDLE';
+            u.target = null;
+            u.path = null;
+            return;
+        }
+
+        const cfg = CFG();
+        const ts = cfg.TILE_SIZE;
+        const dist = Math.hypot(ship.x - u.x, ship.y - u.y);
+
+        // If very close to the transport ship, load into it!
+        if (dist <= ts * 1.5) {
+            if (ship.cargo && ship.cargo.length < (ship.maxCargo || 10)) {
+                ship.cargo.push(u);
+                u.loadedInShip = true;
+                u.state = 'IDLE';
+                u.target = null;
+                u.path = null;
+                u.selected = false;
+                console.log('[GAME] Unit loaded into ship. Cargo size:', ship.cargo.length);
+                return;
+            } else {
+                // Ship is full
+                u.state = 'IDLE';
+                u.target = null;
+                u.path = null;
+                return;
+            }
+        }
+
+        // Otherwise move towards the ship
+        const map = CatWar.Map;
+        if (map) {
+            const shipTile = map.worldToTile(ship.x, ship.y);
+            const uTile = map.worldToTile(u.x, u.y);
+            if (!u.path || u.path.length === 0 || u.path[u.path.length - 1].x !== shipTile.tx || u.path[u.path.length - 1].y !== shipTile.ty) {
+                u.path = CatWar.Pathfinding.findPath(
+                    uTile.tx, uTile.ty, shipTile.tx, shipTile.ty,
+                    { ignoreThrottle: true, factionId: u.faction, isWaterOnly: u.isWaterOnly }
+                );
+                u.pathIndex = 0;
+            }
+        }
+
+        if (u.path && u.path.length > 0) {
+            _moveAlongPath(u, dt);
+        } else {
+            const speed = u.speed * ts * dt;
+            u.x += ((ship.x - u.x) / dist) * speed;
+            u.y += ((ship.y - u.y) / dist) * speed;
+        }
+    }
+
+    function unloadShip(ship) {
+        if (!ship || !ship.alive || !ship.cargo || ship.cargo.length === 0) return;
+
+        const map = CatWar.Map;
+        const cfg = CFG();
+        const ts = cfg.TILE_SIZE;
+        const shipTile = map.worldToTile(ship.x, ship.y);
+
+        let unloadTile = null;
+        for (let r = 1; r <= 3; r++) {
+            for (let dy = -r; dy <= r; dy++) {
+                for (let dx = -r; dx <= r; dx++) {
+                    const tx = shipTile.tx + dx;
+                    const ty = shipTile.ty + dy;
+                    if (map.isWalkable(tx, ty, ship.faction, false)) {
+                        unloadTile = { tx, ty };
+                        break;
+                    }
+                }
+                if (unloadTile) break;
+            }
+            if (unloadTile) break;
+        }
+
+        if (!unloadTile) {
+            console.log('[GAME] Cannot unload: No adjacent walkable land found!');
+            return;
+        }
+
+        console.log('[GAME] Unloading', ship.cargo.length, 'units onto land at', unloadTile.tx, unloadTile.ty);
+
+        for (const u of ship.cargo) {
+            u.x = (unloadTile.tx + 0.5) * ts;
+            u.y = (unloadTile.ty + 0.5) * ts;
+            u.loadedInShip = false;
+            u.state = 'IDLE';
+            u.path = null;
+            for (let p = 0; p < 2; p++) {
+                addParticle({
+                    x: u.x + (Math.random() - 0.5) * 6,
+                    y: u.y + 4,
+                    vx: (Math.random() - 0.5) * 8,
+                    vy: -Math.random() * 8,
+                    type: 'dust',
+                    size: 1.5,
+                    life: 0.4,
+                    alpha: 0.6
+                });
+            }
+        }
+        ship.cargo = [];
     }
 
     function _autoAggro(u) {
@@ -829,6 +958,14 @@ CatWar.Game = (function () {
         if (target.hp <= 0) {
             target.hp    = 0;
             target.alive = false;
+            if (target.cargo && target.cargo.length > 0) {
+                for (const cargoUnit of target.cargo) {
+                    cargoUnit.hp = 0;
+                    cargoUnit.alive = false;
+                    cargoUnit.loadedInShip = false;
+                }
+                target.cargo = [];
+            }
         }
     }
 
@@ -856,7 +993,7 @@ CatWar.Game = (function () {
                 const uTile = map.worldToTile(u.x, u.y);
                 const path = CatWar.Pathfinding.findPath(
                     uTile.tx, uTile.ty, tx, ty,
-                    { ignoreThrottle: true, factionId: u.faction }
+                    { ignoreThrottle: true, factionId: u.faction, isWaterOnly: u.isWaterOnly }
                 );
                 if (path && path.length > 0) {
                     u.path = path;
@@ -948,7 +1085,7 @@ CatWar.Game = (function () {
                 const bTile = map.worldToTile(targetX, targetY);
                 const path = CatWar.Pathfinding.findPath(
                     uTile.tx, uTile.ty, bTile.tx, bTile.ty,
-                    { ignoreThrottle: true, factionId: u.faction }
+                    { ignoreThrottle: true, factionId: u.faction, isWaterOnly: u.isWaterOnly }
                 );
                 if (path && path.length > 0) {
                     u.path = path;
@@ -1035,7 +1172,7 @@ CatWar.Game = (function () {
                     const fTile = map.worldToTile(fx, fy);
                     u.path = CatWar.Pathfinding.findPath(
                         uTile.tx, uTile.ty, fTile.tx, fTile.ty,
-                        { ignoreThrottle: true, factionId: u.faction }
+                        { ignoreThrottle: true, factionId: u.faction, isWaterOnly: u.isWaterOnly }
                     );
                     u.pathIndex = 0;
                     if (!u.path) {
@@ -1093,7 +1230,7 @@ CatWar.Game = (function () {
                     const cTile = map.worldToTile(cx, cy);
                     u.path = CatWar.Pathfinding.findPath(
                         uTile.tx, uTile.ty, cTile.tx, cTile.ty,
-                        { ignoreThrottle: true, factionId: u.faction }
+                        { ignoreThrottle: true, factionId: u.faction, isWaterOnly: u.isWaterOnly }
                     );
                     u.pathIndex = 0;
                     if (!u.path) {
@@ -1230,7 +1367,7 @@ CatWar.Game = (function () {
                                 const uTile = map.worldToTile(newUnit.x, newUnit.y);
                                 newUnit.path = CatWar.Pathfinding.findPath(
                                     uTile.tx, uTile.ty, rTile.tx, rTile.ty,
-                                    { ignoreThrottle: true, factionId: newUnit.faction }
+                                    { ignoreThrottle: true, factionId: newUnit.faction, isWaterOnly: newUnit.isWaterOnly }
                                 );
                             }
                             newUnit.pathIndex = 0;
@@ -1275,7 +1412,7 @@ CatWar.Game = (function () {
                                 const rTile = map.worldToTile(b.rallyX, b.rallyY);
                                 newlyTrained.path = CatWar.Pathfinding.findPath(
                                     uTile.tx, uTile.ty, rTile.tx, rTile.ty,
-                                    { ignoreThrottle: true, factionId: newlyTrained.faction }
+                                    { ignoreThrottle: true, factionId: newlyTrained.faction, isWaterOnly: newlyTrained.isWaterOnly }
                                 );
                                 newlyTrained.pathIndex = 0;
                                 newlyTrained.state = 'MOVING';
@@ -1522,7 +1659,7 @@ CatWar.Game = (function () {
                             const path = CatWar.Pathfinding.findPath(
                                 tileFrom.tx, tileFrom.ty,
                                 tileTo.tx, tileTo.ty,
-                                { ignoreThrottle: true, factionId: u.faction }
+                                { ignoreThrottle: true, factionId: u.faction, isWaterOnly: u.isWaterOnly }
                             );
                             if (path) {
                                 u.path = path;
@@ -1770,7 +1907,7 @@ CatWar.Game = (function () {
         // Check units (top = highest Y first)
         const sortedUnits = units.slice().sort((a, b) => b.y - a.y);
         for (const u of sortedUnits) {
-            if (!u.alive) continue;
+            if (!u.alive || u.loadedInShip) continue;
             if (opts.ignoreFriendlyUnits && u.faction === playerFaction) continue;
             const dx = wx - u.x;
             const dy = wy - u.y;
@@ -1812,7 +1949,7 @@ CatWar.Game = (function () {
     function getEntitiesInRect(x, y, w, h) {
         const result = [];
         for (const u of units) {
-            if (!u.alive) continue;
+            if (!u.alive || u.loadedInShip) continue;
             if (u.x >= x && u.x <= x + w && u.y >= y && u.y <= y + h) {
                 result.push(u);
             }
@@ -1827,7 +1964,7 @@ CatWar.Game = (function () {
     }
 
     function getUnitsForFaction(factionId) {
-        return units.filter(u => u.alive && u.faction === factionId);
+        return units.filter(u => u.alive && u.faction === factionId && !u.loadedInShip);
     }
 
     function getBuildingsForFaction(factionId) {
@@ -1979,6 +2116,7 @@ CatWar.Game = (function () {
         getUnitsForFaction,
         getBuildingsForFaction,
         getBuildingAtTile,
+        unloadShip,
 
         // Constants
         STATES

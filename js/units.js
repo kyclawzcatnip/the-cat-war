@@ -227,6 +227,35 @@ CatWar.Units = (function () {
       isRanged: true,
       isFlyer: true,
       projectileType: 'BULLET'
+    },
+    TRANSPORT_SHIP: {
+      hp: 150,
+      damage: 0,
+      speed: 144,   // 4.5 * 32 pixels/sec
+      range: 0,
+      armor: 2,
+      attackCooldown: 1.0,
+      cost: { gold: 80, wood: 120, stone: 0, food: 0 },
+      trainTime: 20,
+      width: 32,
+      height: 32,
+      isRanged: false,
+      isWaterOnly: true
+    },
+    WARSHIP: {
+      hp: 200,
+      damage: 8,
+      speed: 112,   // 3.5 * 32 pixels/sec
+      range: 8 * 32,
+      armor: 3,
+      attackCooldown: 1.5,
+      cost: { gold: 150, wood: 100, stone: 0, food: 0 },
+      trainTime: 30,
+      width: 32,
+      height: 32,
+      isRanged: true,
+      isWaterOnly: true,
+      projectileType: 'BOLT'
     }
   };
 
@@ -283,6 +312,12 @@ CatWar.Units = (function () {
 
     // Flyer
     unit.isFlyer = !!def.isFlyer;
+
+    // Water Only & Cargo
+    unit.isWaterOnly = !!def.isWaterOnly;
+    if (unit.isWaterOnly) {
+      unit.cargo = [];
+    }
 
     // Healer
     if (def.isHealer) {

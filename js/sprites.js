@@ -1175,6 +1175,79 @@ CatWar.Sprites = (function () {
     ctx.restore();
   };
 
+  // ----------- TRANSPORT SHIP -----------
+  unitDrawers.TRANSPORT_SHIP = function (ctx, dir, frame, fur, fc, s, state) {
+    var bob = Math.sin((frame || 0) * Math.PI / 2) * 1.5 * s;
+    var d = dir || 1;
+    ctx.save();
+    ctx.scale(d, 1);
+
+    var oarAngle = Math.sin((frame || 0) * Math.PI / 2) * 0.3;
+    ctx.save();
+    ctx.translate(bob, bob);
+    ctx.rotate(oarAngle);
+    line(ctx, -6 * s, 6 * s, -12 * s, 14 * s, '#8B4513', 2 * s);
+    line(ctx, 0 * s, 6 * s, -3 * s, 15 * s, '#8B4513', 2 * s);
+    line(ctx, 6 * s, 6 * s, 4 * s, 14 * s, '#8B4513', 2 * s);
+    ctx.restore();
+
+    roundRect(ctx, -16 * s, -3 * s + bob, 32 * s, 10 * s, 4 * s, '#8B4513');
+    roundRectStroke(ctx, -16 * s, -3 * s + bob, 32 * s, 10 * s, 4 * s, '#5C2E0B', 1.5 * s);
+
+    roundRect(ctx, -10 * s, -6 * s + bob, 14 * s, 4 * s, 2 * s, '#A0522D');
+    roundRect(ctx, 4 * s, -5 * s + bob, 8 * s, 3 * s, 1 * s, '#A0522D');
+
+    circle(ctx, -10 * s, 2 * s + bob, 3 * s, fc.primary);
+    circle(ctx, -10 * s, 2 * s + bob, 1.5 * s, fc.secondary);
+    circle(ctx, 0 * s, 2 * s + bob, 3 * s, fc.primary);
+    circle(ctx, 0 * s, 2 * s + bob, 1.5 * s, fc.secondary);
+    circle(ctx, 10 * s, 2 * s + bob, 3 * s, fc.primary);
+    circle(ctx, 10 * s, 2 * s + bob, 1.5 * s, fc.secondary);
+
+    line(ctx, -2 * s, -6 * s + bob, -2 * s, -22 * s + bob, '#8B4513', 2 * s);
+    roundRect(ctx, -10 * s, -20 * s + bob, 16 * s, 12 * s, 3 * s, '#F4F0EA');
+    px(ctx, -4 * s, -18 * s + bob, 4 * s, 8 * s, fc.primary);
+    px(ctx, -8 * s, -16 * s + bob, 12 * s, 4 * s, fc.primary);
+
+    triangle(ctx, -8 * s, -9 * s + bob, -6 * s, -12 * s + bob, -4 * s, -9 * s + bob, fur);
+    triangle(ctx, -2 * s, -9 * s + bob, 0 * s, -12 * s + bob, 2 * s, -9 * s + bob, fur);
+
+    ctx.restore();
+  };
+
+  // ----------- WARSHIP -----------
+  unitDrawers.WARSHIP = function (ctx, dir, frame, fur, fc, s, state) {
+    var bob = Math.sin((frame || 0) * Math.PI / 2) * 1.5 * s;
+    var d = dir || 1;
+    ctx.save();
+    ctx.scale(d, 1);
+
+    roundRect(ctx, -16 * s, -4 * s + bob, 32 * s, 11 * s, 3 * s, '#A0522D');
+    roundRect(ctx, -14 * s, -2 * s + bob, 28 * s, 7 * s, 2 * s, '#708090');
+    roundRectStroke(ctx, -14 * s, -2 * s + bob, 28 * s, 7 * s, 2 * s, '#DAA520', 1 * s);
+
+    roundRect(ctx, -11 * s, -8 * s + bob, 10 * s, 5 * s, 1.5 * s, '#47535E');
+    roundRect(ctx, 3 * s, -7 * s + bob, 7 * s, 4 * s, 1 * s, '#47535E');
+
+    line(ctx, -5 * s, -8 * s + bob, -5 * s, -25 * s + bob, '#5C2E0B', 2 * s);
+    roundRect(ctx, -12 * s, -22 * s + bob, 14 * s, 11 * s, 2 * s, fc.primary);
+    roundRect(ctx, -9 * s, -19 * s + bob, 8 * s, 5 * s, 1 * s, fc.secondary);
+
+    var wave = Math.sin((frame || 0) * Math.PI / 2) * 2 * s;
+    triangle(ctx, -5 * s, -25 * s + bob, -12 * s + wave, -23 * s + bob, -5 * s, -21 * s + bob, fc.secondary);
+
+    var fireRecoil = state === 'ATTACKING' ? Math.sin((frame || 0) * Math.PI) * 4 * s : 0;
+    px(ctx, 10 * s - fireRecoil, -5 * s + bob, 4 * s, 4 * s, '#8B4513');
+    line(ctx, 12 * s - fireRecoil, -9 * s + bob, 12 * s - fireRecoil, 3 * s + bob, '#47535E', 2.5 * s);
+    line(ctx, 8 * s - fireRecoil, -3 * s + bob, 17 * s - fireRecoil, -3 * s + bob, '#DAA520', 1.5 * s);
+    triangle(ctx, 17 * s - fireRecoil, -5 * s + bob, 21 * s - fireRecoil, -3 * s + bob, 17 * s - fireRecoil, -1 * s + bob, '#B22222');
+
+    triangle(ctx, -9 * s, -11 * s + bob, -7 * s, -14 * s + bob, -5 * s, -11 * s + bob, fur);
+    triangle(ctx, -3 * s, -11 * s + bob, -1 * s, -14 * s + bob, 1 * s, -11 * s + bob, fur);
+
+    ctx.restore();
+  };
+
   /* ========================================================================
    *  DRAW CAT — public entry point
    * ====================================================================== */
@@ -1703,6 +1776,39 @@ CatWar.Sprites = (function () {
     px(ctx, -1 * s, -h / 2 + 32 * s, 2 * s, 5 * s, '#1a1a2e');
 
     drawConstruction(ctx, w + 12 * s, h + 6 * s, progress, s);
+  };
+
+  // ----------- DOCK -----------
+  buildingDrawers.DOCK = function (ctx, fc, progress, s) {
+    var w = 48 * s, h = 48 * s;
+
+    roundRect(ctx, -w / 2, -h / 2 + 10 * s, w, h - 10 * s, 4 * s, '#8B5A2B');
+    roundRectStroke(ctx, -w / 2, -h / 2 + 10 * s, w, h - 10 * s, 4 * s, '#5C3A21', 1.5 * s);
+
+    for (var i = -w / 2 + 6 * s; i < w / 2; i += 8 * s) {
+      line(ctx, i, -h / 2 + 10 * s, i, h / 2, '#5C3A21', 1 * s);
+    }
+
+    px(ctx, -w / 2 + 2 * s, h / 2 - 2 * s, 4 * s, 10 * s, '#3A2010');
+    px(ctx, -w / 4, h / 2 - 2 * s, 4 * s, 10 * s, '#3A2010');
+    px(ctx, w / 4 - 4 * s, h / 2 - 2 * s, 4 * s, 10 * s, '#3A2010');
+    px(ctx, w / 2 - 6 * s, h / 2 - 2 * s, 4 * s, 10 * s, '#3A2010');
+
+    roundRect(ctx, -w / 2 + 4 * s, -h / 2 - 2 * s, 20 * s, 16 * s, 2 * s, '#A0522D');
+    roundRectStroke(ctx, -w / 2 + 4 * s, -h / 2 - 2 * s, 20 * s, 16 * s, 2 * s, '#5C2E0B', 1 * s);
+    triangle(ctx, -w / 2 + 2 * s, -h / 2 - 2 * s, -w / 2 + 14 * s, -h / 2 - 10 * s, -w / 2 + 26 * s, -h / 2 - 2 * s, '#CD5C5C');
+
+    roundRect(ctx, w / 2 - 14 * s, -h / 2 + 14 * s, 8 * s, 10 * s, 1.5 * s, '#CD853F');
+    roundRectStroke(ctx, w / 2 - 14 * s, -h / 2 + 14 * s, 8 * s, 10 * s, 1.5 * s, '#5C3A21', 0.8 * s);
+    line(ctx, w / 2 - 14 * s, -h / 2 + 17 * s, w / 2 - 6 * s, -h / 2 + 17 * s, '#222', 0.5 * s);
+    line(ctx, w / 2 - 14 * s, -h / 2 + 21 * s, w / 2 - 6 * s, -h / 2 + 21 * s, '#222', 0.5 * s);
+
+    circle(ctx, w / 2 - 10 * s, h / 2 - 12 * s, 3.5 * s, '#C0C0C0');
+    circle(ctx, w / 2 - 10 * s, h / 2 - 12 * s, 2 * s, '#8B5A2B');
+    line(ctx, w / 2 - 10 * s, h / 2 - 12 * s, w / 2 - 10 * s, h / 2 - 4 * s, '#C0C0C0', 1.5 * s);
+
+    drawBanner(ctx, w / 2 - 4 * s, -h / 2 + 10 * s, fc, s);
+    drawConstruction(ctx, w + 4 * s, h + 4 * s, progress, s);
   };
 
   /* ========================================================================

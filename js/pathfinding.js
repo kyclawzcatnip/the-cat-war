@@ -126,6 +126,7 @@ CatWar.Pathfinding = (function () {
         if (!map) return null;
 
         const factionId = opts.factionId;
+        const isWaterOnly = !!opts.isWaterOnly;
 
         // Throttle check
         if (!opts.ignoreThrottle) {
@@ -143,8 +144,8 @@ CatWar.Pathfinding = (function () {
         if (sx === ex && sy === ey) return [{ x: ex, y: ey }];
 
         // If destination is unwalkable, find the closest walkable neighbour
-        if (!map.isWalkable(ex, ey, factionId)) {
-            const alt = _nearestWalkable(ex, ey, factionId);
+        if (!map.isWalkable(ex, ey, factionId, isWaterOnly)) {
+            const alt = _nearestWalkable(ex, ey, factionId, isWaterOnly);
             if (!alt) return null;
             ex = alt.x;
             ey = alt.y;
@@ -212,18 +213,18 @@ CatWar.Pathfinding = (function () {
                 if (closed[nk]) continue;
 
                 // Walkable check
-                if (!map.isWalkable(nx, ny, factionId)) continue;
+                if (!map.isWalkable(nx, ny, factionId, isWaterOnly)) continue;
 
                 // For diagonal movement, ensure both adjacent cardinal tiles
                 // are walkable (no corner-cutting through walls)
                 if (DIRS[d].dx !== 0 && DIRS[d].dy !== 0) {
-                    if (!map.isWalkable(cx + DIRS[d].dx, cy, factionId) ||
-                        !map.isWalkable(cx, cy + DIRS[d].dy, factionId)) {
+                    if (!map.isWalkable(cx + DIRS[d].dx, cy, factionId, isWaterOnly) ||
+                        !map.isWalkable(cx, cy + DIRS[d].dy, factionId, isWaterOnly)) {
                         continue;
                     }
                 }
 
-                const moveCost = map.getMovementCost(nx, ny, factionId);
+                const moveCost = map.getMovementCost(nx, ny, factionId, isWaterOnly);
                 if (moveCost >= 100) continue; // effectively impassable
 
                 const stepCost = (d % 2 === 0) ? moveCost : moveCost * DIAG;
@@ -340,7 +341,7 @@ CatWar.Pathfinding = (function () {
     //  Nearest walkable tile (for unwalkable destinations)
     // ═══════════════════════════════════════════════════════════════
 
-    function _nearestWalkable(tx, ty, factionId) {
+    function _nearestWalkable(tx, ty, factionId, isWaterOnly) {
         const map = CatWar.Map;
         const cfg = CFG();
 
@@ -353,7 +354,7 @@ CatWar.Pathfinding = (function () {
                     const ny = ty + dy;
                     if (nx >= 0 && nx < cfg.MAP_WIDTH &&
                         ny >= 0 && ny < cfg.MAP_HEIGHT &&
-                        map.isWalkable(nx, ny, factionId)) {
+                        map.isWalkable(nx, ny, factionId, isWaterOnly)) {
                         return { x: nx, y: ny };
                     }
                 }
@@ -400,7 +401,7 @@ CatWar.Pathfinding = (function () {
         const leaderTile = map.worldToTile(leader.x, leader.y);
         const leaderPath = findPath(leaderTile.tx, leaderTile.ty,
                                      destTile.tx, destTile.ty,
-                                     { ignoreThrottle: true, factionId: leader.faction });
+                                     { ignoreThrottle: true, factionId: leader.faction, isWaterOnly: leader.isWaterOnly });
         results.set(leader, leaderPath);
 
         // Formation: arrange other units in a grid around the destination
@@ -423,15 +424,15 @@ CatWar.Pathfinding = (function () {
             targetTY = Math.max(0, Math.min(cfg.MAP_HEIGHT - 1, targetTY));
 
             // If not walkable, find nearby walkable
-            if (!map.isWalkable(targetTX, targetTY, u.faction)) {
-                const alt = _nearestWalkable(targetTX, targetTY, u.faction);
+            if (!map.isWalkable(targetTX, targetTY, u.faction, u.isWaterOnly)) {
+                const alt = _nearestWalkable(targetTX, targetTY, u.faction, u.isWaterOnly);
                 if (alt) { targetTX = alt.x; targetTY = alt.y; }
             }
 
             const uTile = map.worldToTile(u.x, u.y);
             const uPath = findPath(uTile.tx, uTile.ty,
                                     targetTX, targetTY,
-                                    { ignoreThrottle: true, factionId: u.faction });
+                                    { ignoreThrottle: true, factionId: u.faction, isWaterOnly: u.isWaterOnly });
             results.set(u, uPath);
         }
 

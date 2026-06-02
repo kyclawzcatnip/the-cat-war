@@ -635,12 +635,15 @@ window.CatWar = window.CatWar || {};
     this.targetY = y;
     this.state = UnitState.MOVING;
 
-    // Simple pathfinding — straight line for now
-    // Real pathfinding (A*) would be provided by CatWar.Pathfinding
-    if (CatWar.Pathfinding && CatWar.Pathfinding.findPath) {
-      this.path = CatWar.Pathfinding.findPath(this.x, this.y, x, y);
+    if (CatWar.Pathfinding && CatWar.Pathfinding.findPath && CatWar.Map) {
+      const map = CatWar.Map;
+      const startTile = map.worldToTile(this.x, this.y);
+      const endTile = map.worldToTile(x, y);
+      this.path = CatWar.Pathfinding.findPath(
+        startTile.tx, startTile.ty, endTile.tx, endTile.ty,
+        { ignoreThrottle: true, factionId: this.faction, isWaterOnly: this.isWaterOnly }
+      );
     } else {
-      // Fallback: direct path
       this.path = [{ x: x, y: y }];
     }
     this.pathIndex = 0;

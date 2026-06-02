@@ -279,11 +279,6 @@ CatWar.Camera = (function () {
 
                     // Apply fog dimming
                     let alpha = 1;
-                    if (map.fogGrid) {
-                        const fogVal = map.fogGrid[ty][tx];
-                        if (fogVal === cfg.FOG.HIDDEN)   alpha = 0.15;
-                        if (fogVal === cfg.FOG.EXPLORED) alpha = 0.55;
-                    }
 
                     ctx.globalAlpha = alpha;
                     ctx.fillStyle = terrain ? terrain.color : '#000';

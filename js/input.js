@@ -264,6 +264,10 @@ CatWar.Input = (function () {
         if (CatWar.Renderer && CatWar.Renderer.minerPanelHandleClick &&
             CatWar.Renderer.minerPanelHandleClick(screenX, screenY)) return;
 
+        // Check transport panel
+        if (CatWar.Renderer && CatWar.Renderer.transportPanelHandleClick &&
+            CatWar.Renderer.transportPanelHandleClick(screenX, screenY)) return;
+
         // Check hotbar
         if (CatWar.Renderer && CatWar.Renderer.hotbarHandleClick &&
             CatWar.Renderer.hotbarHandleClick(screenX, screenY)) return;
@@ -354,6 +358,9 @@ CatWar.Input = (function () {
             if (CatWar.Renderer.isOverMinerPanel && CatWar.Renderer.isOverMinerPanel(screenX, screenY)) {
                 return;
             }
+            if (CatWar.Renderer.isOverTransportPanel && CatWar.Renderer.isOverTransportPanel(screenX, screenY)) {
+                return;
+            }
             if (CatWar.Renderer.isOverHotbar && CatWar.Renderer.isOverHotbar(screenX, screenY)) {
                 console.log('[INPUT] Right-click blocked by hotbar');
                 return;
@@ -371,8 +378,8 @@ CatWar.Input = (function () {
         const w = CatWar.Camera.screenToWorld(screenX, screenY);
         let target = game.getEntitiesAtPoint(w.x, w.y);
 
-        // If target is a friendly unit, look "through" it for resources or enemies
-        if (target && !target.isBuilding && !target.isResource && target.faction === game.playerFaction) {
+        // If target is a friendly unit (and not a transport ship), look "through" it
+        if (target && !target.isBuilding && !target.isResource && target.faction === game.playerFaction && target.type !== 'TRANSPORT_SHIP') {
             const alt = game.getEntitiesAtPoint(w.x, w.y, { ignoreFriendlyUnits: true });
             if (alt) target = alt;
         }
@@ -381,6 +388,13 @@ CatWar.Input = (function () {
             // Right-click on enemy → attack
             _pushCommand({
                 type:   'ATTACK',
+                units:  [...selectedUnits],
+                target: target
+            });
+        } else if (target && target.type === 'TRANSPORT_SHIP' && target.faction === game.playerFaction) {
+            // Right-click on friendly transport ship → LOAD command
+            _pushCommand({
+                type:   'LOAD',
                 units:  [...selectedUnits],
                 target: target
             });
@@ -472,6 +486,49 @@ CatWar.Input = (function () {
 
         const tile = map.worldToTile(worldX, worldY);
         buildValid = true;
+
+        if (buildType === 'DOCK') {
+            let hasWater = false;
+            let hasLand = false;
+            const size = bCfg.size;
+
+            for (let dy = 0; dy < size.h; dy++) {
+                for (let dx = 0; dx < size.w; dx++) {
+                    const tx = tile.tx + dx;
+                    const ty = tile.ty + dy;
+
+                    if (tx < 0 || tx >= cfg.MAP_WIDTH || ty < 0 || ty >= cfg.MAP_HEIGHT) {
+                        buildValid = false;
+                        return;
+                    }
+
+                    const entities = game.getEntitiesAtPoint(
+                        (tx + 0.5) * cfg.TILE_SIZE,
+                        (ty + 0.5) * cfg.TILE_SIZE
+                    );
+                    if (entities && entities.isBuilding) {
+                        buildValid = false;
+                        return;
+                    }
+
+                    const tileId = map.grid[ty][tx];
+                    const tKey = cfg.TERRAIN_BY_ID[tileId];
+                    if (tKey === 'WATER') {
+                        hasWater = true;
+                    } else if (tKey === 'GRASS' || tKey === 'SAND' || tKey === 'FOREST' || tKey === 'ROAD') {
+                        hasLand = true;
+                    } else {
+                        buildValid = false;
+                        return;
+                    }
+                }
+            }
+
+            if (!hasWater || !hasLand) {
+                buildValid = false;
+            }
+            return;
+        }
 
         // Check every tile the building would occupy
         for (let dy = 0; dy < bCfg.size.h; dy++) {
