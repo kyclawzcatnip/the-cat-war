@@ -916,6 +916,50 @@ CatWar.Game = (function () {
         }
     }
 
+    function _findNearestResourceOnMap(unitX, unitY, resourceType) {
+        const map = CatWar.Map;
+        const cfg = CFG();
+        if (!map) return null;
+
+        const uTile = map.worldToTile(unitX, unitY);
+        let bestDistSq = Infinity;
+        let bestTX = -1, bestTY = -1;
+
+        for (let ty = 0; ty < cfg.MAP_HEIGHT; ty++) {
+            for (let tx = 0; tx < cfg.MAP_WIDTH; tx++) {
+                const rd = map.getResourceData(tx, ty);
+                if (rd && rd.amount > 0 && rd.resource === resourceType) {
+                    const dx = tx - uTile.tx;
+                    const dy = ty - uTile.ty;
+                    const distSq = dx * dx + dy * dy;
+                    if (distSq < bestDistSq) {
+                        bestDistSq = distSq;
+                        bestTX = tx;
+                        bestTY = ty;
+                    }
+                }
+            }
+        }
+
+        if (bestTX >= 0) {
+            const rd = map.getResourceData(bestTX, bestTY);
+            return {
+                isResource: true,
+                tx: bestTX,
+                ty: bestTY,
+                x: (bestTX + 0.5) * cfg.TILE_SIZE,
+                y: (bestTY + 0.5) * cfg.TILE_SIZE,
+                resource: rd.resource,
+                resourceType: rd.resource,
+                richness: rd.richness || 1.0,
+                amount: rd.amount,
+                remaining: rd.amount,
+                alive: true
+            };
+        }
+        return null;
+    }
+
     function _handleAttack(u, dt) {
         const cfg = CFG();
         const ts  = cfg.TILE_SIZE;
@@ -1096,9 +1140,27 @@ CatWar.Game = (function () {
                     u.state = 'RETURNING';
                 }
             } else {
-                // Resource depleted
-                u.gatherTarget = null;
-                u.state = 'IDLE';
+                // Resource depleted — find next in pattern!
+                const lastGatheredType = u.carryResource || (u.gatherTarget ? u.gatherTarget.resource : null);
+                let nextTarget = null;
+                if (lastGatheredType) {
+                    let nextType = 'WOOD';
+                    if (lastGatheredType === 'WOOD') nextType = 'STONE';
+                    else if (lastGatheredType === 'STONE') nextType = 'GOLD';
+                    else if (lastGatheredType === 'GOLD') nextType = 'WOOD';
+
+                    nextTarget = _findNearestResourceOnMap(u.x, u.y, nextType);
+                }
+
+                if (nextTarget) {
+                    u.gatherTarget = nextTarget;
+                    u.minePreference = nextTarget.resource;
+                    u.state = 'GATHERING';
+                    u.path = null;
+                } else {
+                    u.gatherTarget = null;
+                    u.state = 'IDLE';
+                }
             }
         }
     }
@@ -1159,25 +1221,39 @@ CatWar.Game = (function () {
             // Drop off resources
             u.path = null;
             const res = factionResources[u.faction];
+            const lastGatheredType = u.carryResource || (u.gatherTarget ? u.gatherTarget.resource : null);
             if (res && u.carryResource) {
                 res[u.carryResource] = (res[u.carryResource] || 0) + u.carrying;
             }
             u.carrying     = 0;
             u.carryResource = null;
 
-            // Go back to gathering
-            if (u.gatherTarget) {
-                if (u.minePreference && u.minePreference !== 'auto') {
-                    const rd = map.getResourceData(u.gatherTarget.tx, u.gatherTarget.ty);
-                    if (!rd || rd.resource !== u.minePreference) {
-                        u.gatherTarget = null;
-                    }
+            // Go back to gathering, following the WOOD -> STONE -> GOLD pattern repeat
+            let nextTarget = null;
+            if (lastGatheredType) {
+                let nextType = 'WOOD';
+                if (lastGatheredType === 'WOOD') nextType = 'STONE';
+                else if (lastGatheredType === 'STONE') nextType = 'GOLD';
+                else if (lastGatheredType === 'GOLD') nextType = 'WOOD';
+
+                nextTarget = _findNearestResourceOnMap(u.x, u.y, nextType);
+            }
+
+            // Fall back to current gather target if next pattern type is not found
+            if (!nextTarget && u.gatherTarget) {
+                const rd = map.getResourceData(u.gatherTarget.tx, u.gatherTarget.ty);
+                if (rd && rd.amount > 0) {
+                    nextTarget = u.gatherTarget;
                 }
             }
 
-            if (u.gatherTarget) {
+            if (nextTarget) {
+                u.gatherTarget = nextTarget;
+                u.minePreference = nextTarget.resource;
                 u.state = 'GATHERING';
+                u.path = null;
             } else {
+                u.gatherTarget = null;
                 u.state = 'IDLE';
             }
         }
