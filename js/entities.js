@@ -477,7 +477,25 @@ window.CatWar = window.CatWar || {};
       this.carryType = this.gatherTarget.resourceType || 'GOLD';
 
       // Deplete resource node
-      if (this.gatherTarget.remaining !== undefined) {
+      if (this.gatherTarget.isResource) {
+        if (CatWar.Map && CatWar.Map.harvestResource) {
+          CatWar.Map.harvestResource(this.gatherTarget.tx, this.gatherTarget.ty, gatherAmount);
+          var rd = CatWar.Map.getResourceData(this.gatherTarget.tx, this.gatherTarget.ty);
+          if (!rd || rd.amount <= 0) {
+            this.gatherTarget.remaining = 0;
+            this.gatherTarget.alive = false;
+            this.gatherTarget = null;
+          } else {
+            this.gatherTarget.remaining = rd.amount;
+          }
+        } else {
+          this.gatherTarget.remaining = Math.max(0, this.gatherTarget.remaining - gatherAmount);
+          if (this.gatherTarget.remaining <= 0) {
+            this.gatherTarget.alive = false;
+            this.gatherTarget = null;
+          }
+        }
+      } else if (this.gatherTarget.remaining !== undefined) {
         this.gatherTarget.remaining -= gatherAmount;
         if (this.gatherTarget.remaining <= 0) {
           this.gatherTarget.remaining = 0;
@@ -526,7 +544,55 @@ window.CatWar = window.CatWar || {};
     }
   };
 
+  function findNearestResourceOnMap(unitX, unitY, resourceType) {
+    if (!CatWar.Map) return null;
+    var map = CatWar.Map;
+    var ts = (CatWar.Config && CatWar.Config.TILE_SIZE) || 32;
+    var mapWidth = (CatWar.Config && CatWar.Config.MAP_WIDTH) || 80;
+    var mapHeight = (CatWar.Config && CatWar.Config.MAP_HEIGHT) || 80;
+
+    var uTile = map.worldToTile(unitX, unitY);
+    var bestDistSq = Infinity;
+    var bestTX = -1, bestTY = -1;
+
+    for (var ty = 0; ty < mapHeight; ty++) {
+      for (var tx = 0; tx < mapWidth; tx++) {
+        var rd = map.getResourceData(tx, ty);
+        if (rd && rd.amount > 0 && rd.resource === resourceType) {
+          var dx = tx - uTile.tx;
+          var dy = ty - uTile.ty;
+          var distSq = dx * dx + dy * dy;
+          if (distSq < bestDistSq) {
+            bestDistSq = distSq;
+            bestTX = tx;
+            bestTY = ty;
+          }
+        }
+      }
+    }
+
+    if (bestTX >= 0) {
+      var rd = map.getResourceData(bestTX, bestTY);
+      return {
+        isResource: true,
+        tx: bestTX,
+        ty: bestTY,
+        x: (bestTX + 0.5) * ts,
+        y: (bestTY + 0.5) * ts,
+        resource: rd.resource,
+        resourceType: rd.resource,
+        richness: rd.richness || 1.0,
+        amount: rd.amount,
+        remaining: rd.amount,
+        alive: true
+      };
+    }
+    return null;
+  }
+
   Unit.prototype._depositResources = function () {
+    var lastGatheredType = this.carryType || (this.gatherTarget ? this.gatherTarget.resource : null);
+
     if (this.carryAmount > 0 && this.carryType) {
       if (CatWar.Resources) {
         CatWar.Resources.deposit(this.faction, this.carryType, this.carryAmount);
@@ -536,10 +602,36 @@ window.CatWar = window.CatWar || {};
     }
     this.dropOffTarget = null;
 
-    // Go back to gathering
-    if (this.gatherTarget && this.gatherTarget.alive) {
+    // Go back to gathering, following the WOOD -> STONE -> GOLD pattern repeat
+    var nextTarget = null;
+    if (lastGatheredType) {
+      var nextType = 'WOOD';
+      if (lastGatheredType === 'WOOD') nextType = 'STONE';
+      else if (lastGatheredType === 'STONE') nextType = 'GOLD';
+      else if (lastGatheredType === 'GOLD') nextType = 'WOOD';
+
+      nextTarget = findNearestResourceOnMap(this.x, this.y, nextType);
+    }
+
+    // Fall back to current gather target if next pattern type is not found
+    if (!nextTarget && this.gatherTarget && this.gatherTarget.alive) {
+      if (this.gatherTarget.isResource && CatWar.Map) {
+        var rd = CatWar.Map.getResourceData(this.gatherTarget.tx, this.gatherTarget.ty);
+        if (rd && rd.amount > 0) {
+          nextTarget = this.gatherTarget;
+        }
+      } else {
+        nextTarget = this.gatherTarget;
+      }
+    }
+
+    if (nextTarget) {
+      this.gatherTarget = nextTarget;
+      if (nextTarget.resource) {
+        this.minePreference = nextTarget.resource;
+      }
       this.state = UnitState.GATHERING;
-      this.moveTo(this.gatherTarget.x, this.gatherTarget.y);
+      this.moveTo(nextTarget.x, nextTarget.y);
     } else {
       this.state = UnitState.IDLE;
     }

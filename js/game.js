@@ -205,12 +205,19 @@ CatWar.Game = (function () {
                     }
                     if (bestTX >= 0) {
                         usedTiles.add(bestTX + ',' + bestTY);
+                        const rd = map.getResourceData(bestTX, bestTY);
                         miner.gatherTarget = {
                             isResource: true,
                             tx: bestTX,
                             ty: bestTY,
-                            resource: map.getResourceData(bestTX, bestTY).resource,
-                            amount: map.getResourceData(bestTX, bestTY).amount
+                            x: (bestTX + 0.5) * ts,
+                            y: (bestTY + 0.5) * ts,
+                            resource: rd.resource,
+                            resourceType: rd.resource,
+                            richness: rd.richness || 1.0,
+                            amount: rd.amount,
+                            remaining: rd.amount,
+                            alive: true
                         };
                         miner.state = 'GATHERING';
                     }
@@ -579,6 +586,9 @@ CatWar.Game = (function () {
                     } else {
                         // Auto-aggro nearby enemies
                         _autoAggro(u);
+                        if (u.state === 'IDLE') {
+                            _handleWandering(u, dt);
+                        }
                     }
                     break;
 
@@ -858,6 +868,50 @@ CatWar.Game = (function () {
                 u.target = enemy;
                 u.state  = 'ATTACKING';
                 return;
+            }
+        }
+    }
+
+    function _handleWandering(u, dt) {
+        const wanderTypes = ['SWORDSCAT', 'SPEARCAT', 'KNIGHT', 'ARCHER', 'CROSSBOW', 'CAVALRY', 'FARMER'];
+        if (!wanderTypes.includes(u.type)) return;
+
+        if (u.wanderTimer === undefined || u.wanderTimer === null) {
+            u.wanderTimer = 0;
+            u.wanderDelay = 2 + Math.random() * 4; // wait 2-6 seconds initially
+        }
+
+        u.wanderTimer += dt;
+        if (u.wanderTimer >= u.wanderDelay) {
+            u.wanderTimer = 0;
+            u.wanderDelay = 5 + Math.random() * 7; // wait 5-12 seconds before wandering again
+
+            const map = CatWar.Map;
+            const cfg = CFG();
+            if (!map) return;
+
+            const uTile = map.worldToTile(u.x, u.y);
+            const radius = 6; // wander within 6 tiles
+            const dx = Math.floor((Math.random() - 0.5) * 2 * radius);
+            const dy = Math.floor((Math.random() - 0.5) * 2 * radius);
+
+            if (dx === 0 && dy === 0) return;
+
+            const tx = uTile.tx + dx;
+            const ty = uTile.ty + dy;
+
+            if (tx >= 0 && tx < cfg.MAP_WIDTH && ty >= 0 && ty < cfg.MAP_HEIGHT) {
+                if (map.isWalkable(tx, ty, u.faction, u.isWaterOnly)) {
+                    const path = CatWar.Pathfinding.findPath(
+                        uTile.tx, uTile.ty, tx, ty,
+                        { ignoreThrottle: true, factionId: u.faction, isWaterOnly: u.isWaterOnly }
+                    );
+                    if (path && path.length > 0) {
+                        u.path = path;
+                        u.pathIndex = 0;
+                        u.state = 'MOVING';
+                    }
+                }
             }
         }
     }
@@ -1144,7 +1198,11 @@ CatWar.Game = (function () {
                 u.associatedFarm = freeFarm || friendlyFarms[0];
                 if (u.associatedFarm) u.associatedFarm.farmer = u;
             } else {
-                // No farms left — walk back to castle and stand idle
+                // No farms left — wander!
+                if (u.state === 'MOVING') {
+                    _moveAlongPath(u, dt);
+                    return;
+                }
                 u.state = 'IDLE';
                 _updateFarmerIdle(u, dt);
                 return;
@@ -1271,26 +1329,7 @@ CatWar.Game = (function () {
     }
 
     function _updateFarmerIdle(u, dt) {
-        // Walk back to the nearest castle
-        const ts = CFG().TILE_SIZE;
-        let castle = null;
-        let bestDist = Infinity;
-        for (const b of buildings) {
-            if (b.faction !== u.faction || b.hp <= 0) continue;
-            if (b.buildingType === 'CASTLE_KEEP') {
-                const dist = Math.hypot((b.x + b.width / 2) - u.x, (b.y + b.height / 2) - u.y);
-                if (dist < bestDist) { bestDist = dist; castle = b; }
-            }
-        }
-        if (!castle) return;
-        const cx = castle.x + castle.width / 2;
-        const cy = castle.y + castle.height + 16;
-        const dist = Math.hypot(cx - u.x, cy - u.y);
-        if (dist > ts * 1.5) {
-            const speed = u.speed * ts * dt;
-            u.x += ((cx - u.x) / dist) * speed;
-            u.y += ((cy - u.y) / dist) * speed;
-        }
+        _handleWandering(u, dt);
     }
 
     function _updateBuildings(dt) {
@@ -1334,6 +1373,54 @@ CatWar.Game = (function () {
                     b.constructionProgress = 1.0;
                 }
                 continue; // can't train while building
+            }
+
+            // Drawbridge logic
+            if (b.buildingType === 'DRAWBRIDGE' && b.constructionProgress >= 1.0) {
+                let shipNearby = false;
+                let landUnitOnTile = false;
+                const ts = cfg.TILE_SIZE;
+                const range = ts * 2.2;
+                const bTileX = Math.floor(b.x / ts);
+                const bTileY = Math.floor(b.y / ts);
+                const map = CatWar.Map;
+
+                if (map) {
+                    // 1. Check if any land unit is physically on the tile
+                    for (const u of units) {
+                        if (u.alive && !u.isWaterOnly) {
+                            const uTile = map.worldToTile(u.x, u.y);
+                            if (uTile.tx === bTileX && uTile.ty === bTileY) {
+                                landUnitOnTile = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    // 2. If a land unit is crossing, force it to stay closed (lowered)
+                    if (landUnitOnTile) {
+                        b.isOpen = false;
+                    } else {
+                        // 3. Otherwise, check for occupying ships or friendly approaching ships
+                        for (const u of units) {
+                            if (u.alive && u.isWaterOnly) {
+                                const uTile = map.worldToTile(u.x, u.y);
+                                if (uTile.tx === bTileX && uTile.ty === bTileY) {
+                                    shipNearby = true;
+                                    break;
+                                }
+                                if (u.faction === b.faction) {
+                                    const dist = Math.hypot(u.x - (b.x + b.width / 2), u.y - (b.y + b.height / 2));
+                                    if (dist <= range) {
+                                        shipNearby = true;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        b.isOpen = shipNearby;
+                    }
+                }
             }
 
             // Training queue
@@ -1616,12 +1703,19 @@ CatWar.Game = (function () {
                     }
 
                     if (bestTX >= 0) {
+                        const rd = map.getResourceData(bestTX, bestTY);
                         u.gatherTarget = {
                             isResource: true,
                             tx: bestTX,
                             ty: bestTY,
-                            resource: map.getResourceData(bestTX, bestTY).resource,
-                            amount: map.getResourceData(bestTX, bestTY).amount
+                            x: (bestTX + 0.5) * ts,
+                            y: (bestTY + 0.5) * ts,
+                            resource: rd.resource,
+                            resourceType: rd.resource,
+                            richness: rd.richness || 1.0,
+                            amount: rd.amount,
+                            remaining: rd.amount,
+                            alive: true
                         };
                         u.state = 'GATHERING';
                     }
@@ -1934,8 +2028,14 @@ CatWar.Game = (function () {
                     isResource: true,
                     tx: tile.tx,
                     ty: tile.ty,
+                    x: (tile.tx + 0.5) * ts,
+                    y: (tile.ty + 0.5) * ts,
                     resource: rd.resource,
-                    amount: rd.amount
+                    resourceType: rd.resource,
+                    richness: rd.richness || 1.0,
+                    amount: rd.amount,
+                    remaining: rd.amount,
+                    alive: true
                 };
             }
         }

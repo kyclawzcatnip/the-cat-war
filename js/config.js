@@ -346,7 +346,7 @@ CatWar.Config = (function () {
         },
         DOCK: {
             hp:         600,
-            cost:       { gold: 150, wood: 100 },
+            cost:       { wood: 150 },
             buildTime:  25,
             size:       { w: 2, h: 2 },
             trains:     ['TRANSPORT_SHIP', 'WARSHIP'],
@@ -379,6 +379,28 @@ CatWar.Config = (function () {
             isWall:     true,
             isGate:     true,
             description: 'Gate — friendly units pass through, blocks enemies'
+        },
+        BRIDGE: {
+            hp:         400,
+            cost:       { wood: 40 },
+            buildTime:  10,
+            size:       { w: 1, h: 1 },
+            trains:     [],
+            visionRange: 3,
+            popProvided: 0,
+            isBridge:    true,
+            description: 'Wooden bridge — allows land units to cross over water!'
+        },
+        DRAWBRIDGE: {
+            hp:         600,
+            cost:       { wood: 80, stone: 40 },
+            buildTime:  15,
+            size:       { w: 1, h: 1 },
+            trains:     [],
+            visionRange: 4,
+            popProvided: 0,
+            isDrawbridge: true,
+            description: 'Drawbridge — opens to let friendly ships pass, closes to let ground units cross!'
         }
     };
 

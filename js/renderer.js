@@ -1836,7 +1836,9 @@ CatWar.Renderer = (function () {
         WATCHTOWER:     { icon: '🗼', label: 'Tower',        shortcut: 'T' },
         DOCK:           { icon: '⚓', label: 'Dock',         shortcut: 'D' },
         WALL:           { icon: '🧱', label: 'Wall',         shortcut: 'W' },
-        GATE:           { icon: '🚪', label: 'Gate',         shortcut: 'G' }
+        GATE:           { icon: '🚪', label: 'Gate',         shortcut: 'G' },
+        BRIDGE:         { icon: '🌉', label: 'Bridge',       shortcut: 'J' },
+        DRAWBRIDGE:     { icon: '⛓️',  label: 'Drawbridge',   shortcut: 'Y' }
     };
 
     function _renderBuildHotbar(w, h, game) {

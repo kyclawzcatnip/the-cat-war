@@ -532,9 +532,27 @@ CatWar.Map = (function () {
         if (buildingGrid && buildingGrid[ty][tx]) {
             // Is it a friendly gate?
             const game = window.CatWar && window.CatWar.Game;
-            if (game && factionId) {
+            if (game) {
                 const building = game.getBuildingAtTile(tx, ty);
-                if (building && building.buildingType === 'GATE' && building.faction === factionId) {
+                if (building && building.buildingType === 'BRIDGE') {
+                    if (isWaterOnly) {
+                        return false; // Ships treat bridges as impassable blocks
+                    } else {
+                        // Ground units can cross completed bridges
+                        return building.constructionProgress >= 1.0;
+                    }
+                }
+                if (building && building.buildingType === 'DRAWBRIDGE') {
+                    if (building.constructionProgress < 1.0) {
+                        return false; // Not walkable during construction
+                    }
+                    if (building.isOpen) {
+                        return isWaterOnly; // Only ships can sail through when open (raised)
+                    } else {
+                        return !isWaterOnly; // Only land units can cross when closed (lowered)
+                    }
+                }
+                if (factionId && building && building.buildingType === 'GATE' && building.faction === factionId) {
                     return true;
                 }
             }
@@ -562,9 +580,26 @@ CatWar.Map = (function () {
         if (buildingGrid && buildingGrid[ty][tx]) {
             // Is it a friendly gate?
             const game = window.CatWar && window.CatWar.Game;
-            if (game && factionId) {
+            if (game) {
                 const building = game.getBuildingAtTile(tx, ty);
-                if (building && building.buildingType === 'GATE' && building.faction === factionId) {
+                if (building && building.buildingType === 'BRIDGE') {
+                    if (isWaterOnly) {
+                        return Infinity;
+                    } else {
+                        return building.constructionProgress >= 1.0 ? 1.0 : Infinity;
+                    }
+                }
+                if (building && building.buildingType === 'DRAWBRIDGE') {
+                    if (building.constructionProgress < 1.0) {
+                        return Infinity;
+                    }
+                    if (building.isOpen) {
+                        return isWaterOnly ? 1.0 : Infinity; // Ships pass when open
+                    } else {
+                        return !isWaterOnly ? 1.0 : Infinity; // Land units pass when closed
+                    }
+                }
+                if (factionId && building && building.buildingType === 'GATE' && building.faction === factionId) {
                     return 1.0;
                 }
             }

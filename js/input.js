@@ -485,7 +485,30 @@ CatWar.Input = (function () {
         if (!bCfg) { buildValid = false; return; }
 
         const tile = map.worldToTile(worldX, worldY);
-        buildValid = true;
+        if (buildType === 'BRIDGE' || buildType === 'DRAWBRIDGE') {
+            const tx = tile.tx;
+            const ty = tile.ty;
+            if (tx < 0 || tx >= cfg.MAP_WIDTH || ty < 0 || ty >= cfg.MAP_HEIGHT) {
+                buildValid = false;
+                return;
+            }
+            // Check for overlapping buildings
+            const entities = game.getEntitiesAtPoint(
+                (tx + 0.5) * cfg.TILE_SIZE,
+                (ty + 0.5) * cfg.TILE_SIZE
+            );
+            if (entities && entities.isBuilding) {
+                buildValid = false;
+                return;
+            }
+
+            const tileId = map.grid[ty][tx];
+            const tKey = cfg.TERRAIN_BY_ID[tileId];
+            if (tKey !== 'WATER') {
+                buildValid = false;
+            }
+            return;
+        }
 
         if (buildType === 'DOCK') {
             let hasWater = false;

@@ -1811,6 +1811,152 @@ CatWar.Sprites = (function () {
     drawConstruction(ctx, w + 4 * s, h + 4 * s, progress, s);
   };
 
+  // ----------- BRIDGE -----------
+  buildingDrawers.BRIDGE = function (ctx, fc, progress, s) {
+    var w = 32 * s, h = 32 * s;
+
+    // Draw main wooden base (deck)
+    roundRect(ctx, -w / 2, -h / 2, w, h, 2 * s, '#8B5A2B'); // rustic brown wood
+    roundRectStroke(ctx, -w / 2, -h / 2, w, h, 2 * s, '#5C3A21', 1.5 * s);
+
+    // Draw horizontal planks
+    for (var i = -h / 2 + 4 * s; i < h / 2; i += 6 * s) {
+      line(ctx, -w / 2 + 1 * s, i, w / 2 - 1 * s, i, '#5C3A21', 1 * s);
+      // Wood grain / nail details
+      if (i % 4 === 0) {
+        px(ctx, -w / 2 + 4 * s, i - 2 * s, 1.5 * s, 1.5 * s, '#3A2010');
+        px(ctx, w / 2 - 5 * s, i - 2 * s, 1.5 * s, 1.5 * s, '#3A2010');
+      }
+    }
+
+    // Side rope railings on top and bottom
+    // Top Railing
+    line(ctx, -w / 2, -h / 2 + 2 * s, w / 2, -h / 2 + 2 * s, fc.primary, 1.5 * s); // primary faction color rope
+    // Posts
+    roundRect(ctx, -w / 2, -h / 2 - 2 * s, 3 * s, 6 * s, 0.5 * s, '#A0522D');
+    roundRect(ctx, w / 2 - 3 * s, -h / 2 - 2 * s, 3 * s, 6 * s, 0.5 * s, '#A0522D');
+    // Post caps in secondary color
+    circle(ctx, -w / 2 + 1.5 * s, -h / 2 - 2 * s, 2 * s, fc.secondary);
+    circle(ctx, w / 2 - 1.5 * s, -h / 2 - 2 * s, 2 * s, fc.secondary);
+
+    // Bottom Railing
+    line(ctx, -w / 2, h / 2 - 2 * s, w / 2, h / 2 - 2 * s, fc.primary, 1.5 * s);
+    // Posts
+    roundRect(ctx, -w / 2, h / 2 - 4 * s, 3 * s, 6 * s, 0.5 * s, '#A0522D');
+    roundRect(ctx, w / 2 - 3 * s, h / 2 - 4 * s, 3 * s, 6 * s, 0.5 * s, '#A0522D');
+    // Post caps in secondary color
+    circle(ctx, -w / 2 + 1.5 * s, h / 2 + 2 * s, 2 * s, fc.secondary);
+    circle(ctx, w / 2 - 1.5 * s, h / 2 + 2 * s, 2 * s, fc.secondary);
+
+    // Construction progress overlay
+    drawConstruction(ctx, w + 4 * s, h + 4 * s, progress, s);
+  };
+
+  // ----------- DRAWBRIDGE -----------
+  buildingDrawers.DRAWBRIDGE = function (ctx, fc, progress, s, extra) {
+    var w = 32 * s, h = 32 * s;
+    var isOpen = extra && extra.isOpen;
+
+    // 1. Draw water background in the middle (if open)
+    if (isOpen) {
+      roundRect(ctx, -w / 2, -h / 2, w, h, 2 * s, '#2c6fbb'); // water blue
+    }
+
+    // 2. Draw side stone pillars (abutments)
+    // Left side stone pillars
+    roundRect(ctx, -w / 2, -h / 2, 6 * s, 8 * s, 1 * s, '#7f8c8d');
+    roundRect(ctx, -w / 2, h / 2 - 8 * s, 6 * s, 8 * s, 1 * s, '#7f8c8d');
+    roundRectStroke(ctx, -w / 2, -h / 2, 6 * s, 8 * s, 1 * s, '#34495e', 0.8 * s);
+    roundRectStroke(ctx, -w / 2, h / 2 - 8 * s, 6 * s, 8 * s, 1 * s, '#34495e', 0.8 * s);
+
+    // Right side stone pillars
+    roundRect(ctx, w / 2 - 6 * s, -h / 2, 6 * s, 8 * s, 1 * s, '#7f8c8d');
+    roundRect(ctx, w / 2 - 6 * s, h / 2 - 8 * s, 6 * s, 8 * s, 1 * s, '#7f8c8d');
+    roundRectStroke(ctx, w / 2 - 6 * s, -h / 2, 6 * s, 8 * s, 1 * s, '#34495e', 0.8 * s);
+    roundRectStroke(ctx, w / 2 - 6 * s, h / 2 - 8 * s, 6 * s, 8 * s, 1 * s, '#34495e', 0.8 * s);
+
+    // 3. Draw the wooden deck
+    if (!isOpen) {
+      // CLOSED (lowered) state: draw flat solid deck
+      roundRect(ctx, -w / 2 + 5 * s, -h / 2, w - 10 * s, h, 2 * s, '#A0522D'); // solid dark wood
+      roundRectStroke(ctx, -w / 2 + 5 * s, -h / 2, w - 10 * s, h, 2 * s, '#5c2d0b', 1 * s);
+
+      // Horizontal planks
+      for (var i = -h / 2 + 4 * s; i < h / 2; i += 6 * s) {
+        line(ctx, -w / 2 + 5 * s, i, w / 2 - 5 * s, i, '#5c2d0b', 0.8 * s);
+      }
+
+      // Draw taut chains from left pillars to the deck (Y = 0)
+      ctx.strokeStyle = '#bdc3c7'; // shiny chains
+      ctx.lineWidth = 1 * s;
+      line(ctx, -w / 2 + 3 * s, -h / 2 + 4 * s, -w / 4, 0, '#bdc3c7', 1.2 * s);
+      line(ctx, -w / 2 + 3 * s, h / 2 - 4 * s, -w / 4, 0, '#bdc3c7', 1.2 * s);
+      line(ctx, w / 2 - 3 * s, -h / 2 + 4 * s, w / 4, 0, '#bdc3c7', 1.2 * s);
+      line(ctx, w / 2 - 3 * s, h / 2 - 4 * s, w / 4, 0, '#bdc3c7', 1.2 * s);
+    } else {
+      // OPEN (raised) state: draw deck split in two raised halves
+      // Left raised half
+      ctx.save();
+      ctx.translate(-w / 2 + 4 * s, 0);
+      roundRect(ctx, 0, -h / 2 + 2 * s, 8 * s, h - 4 * s, 1 * s, '#8e44ad'); // shadow/underside wood
+      roundRect(ctx, 0, -h / 2 + 2 * s, 6 * s, h - 4 * s, 1 * s, '#A0522D'); 
+      roundRectStroke(ctx, 0, -h / 2 + 2 * s, 6 * s, h - 4 * s, 1 * s, '#5c2d0b', 0.8 * s);
+      // Vertical planks on the raised side
+      for (var i = -h / 2 + 4 * s; i < h / 2; i += 6 * s) {
+        line(ctx, 0, i, 6 * s, i, '#5c2d0b', 0.8 * s);
+      }
+      ctx.restore();
+
+      // Right raised half
+      ctx.save();
+      ctx.translate(w / 2 - 10 * s, 0);
+      roundRect(ctx, 2 * s, -h / 2 + 2 * s, 8 * s, h - 4 * s, 1 * s, '#8e44ad'); // shadow/underside wood
+      roundRect(ctx, 4 * s, -h / 2 + 2 * s, 6 * s, h - 4 * s, 1 * s, '#A0522D'); 
+      roundRectStroke(ctx, 4 * s, -h / 2 + 2 * s, 6 * s, h - 4 * s, 1 * s, '#5c2d0b', 0.8 * s);
+      // Vertical planks
+      for (var i = -h / 2 + 4 * s; i < h / 2; i += 6 * s) {
+        line(ctx, 4 * s, i, 10 * s, i, '#5c2d0b', 0.8 * s);
+      }
+      ctx.restore();
+
+      // Loose sagging chains from pillars to raised halves
+      ctx.strokeStyle = '#bdc3c7';
+      ctx.lineWidth = 1 * s;
+      // Draw curves for loose chains
+      ctx.beginPath();
+      ctx.moveTo(-w / 2 + 3 * s, -h / 2 + 4 * s);
+      ctx.quadraticCurveTo(-w / 3, 0, -w / 3 + 2 * s, -4 * s);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(-w / 2 + 3 * s, h / 2 - 4 * s);
+      ctx.quadraticCurveTo(-w / 3, 0, -w / 3 + 2 * s, 4 * s);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(w / 2 - 3 * s, -h / 2 + 4 * s);
+      ctx.quadraticCurveTo(w / 3, 0, w / 3 - 2 * s, -4 * s);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(w / 2 - 3 * s, h / 2 - 4 * s);
+      ctx.quadraticCurveTo(w / 3, 0, w / 3 - 2 * s, 4 * s);
+      ctx.stroke();
+    }
+
+    // Winch pulleys on pillars in faction colors
+    circle(ctx, -w / 2 + 3 * s, -h / 2 + 4 * s, 2 * s, fc.primary);
+    circle(ctx, -w / 2 + 3 * s, h / 2 - 4 * s, 2 * s, fc.primary);
+    circle(ctx, w / 2 - 3 * s, -h / 2 + 4 * s, 2 * s, fc.primary);
+    circle(ctx, w / 2 - 3 * s, h / 2 - 4 * s, 2 * s, fc.primary);
+
+    // Banner or flagpole on one of the pillars
+    drawBanner(ctx, w / 2 - 3 * s, -h / 2 - 2 * s, fc, s);
+
+    // Construction progress overlay
+    drawConstruction(ctx, w + 4 * s, h + 4 * s, progress, s);
+  };
+
   /* ========================================================================
    *  DRAW BUILDING — public entry point
    * ====================================================================== */
@@ -1822,9 +1968,19 @@ CatWar.Sprites = (function () {
     var drawer = buildingDrawers[buildingType];
     if (!drawer) return;
 
+    // Determine extra state for drawbridges
+    var extra = {};
+    if (buildingType === 'DRAWBRIDGE' && window.CatWar && window.CatWar.Game && window.CatWar.Map) {
+      const bTile = window.CatWar.Map.worldToTile(x, y);
+      const building = window.CatWar.Game.getBuildingAtTile(bTile.tx, bTile.ty);
+      if (building) {
+        extra.isOpen = !!building.isOpen;
+      }
+    }
+
     ctx.save();
     ctx.translate(x, y);
-    drawer(ctx, fc, progress, s);
+    drawer(ctx, fc, progress, s, extra);
     ctx.restore();
   }
 
