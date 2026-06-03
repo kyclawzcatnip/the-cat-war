@@ -154,6 +154,7 @@ CatWar.Game = (function () {
                                             (sp.tx - 1) * ts,
                                             (sp.ty - 1) * ts);
             castle.constructionProgress = 1.0; // already built
+            castle.isComplete = true;
 
             // 2 Head Miners near the castle
             const startMiners = [];
@@ -503,6 +504,17 @@ CatWar.Game = (function () {
                 break;
             }
 
+            case 'CONSTRUCT': {
+                for (const u of cmd.units) {
+                    if (u.type === 'PEASANT' || u.type === 'HEAD_MINER') {
+                        u.state = 'BUILDING';
+                        u.buildTarget = cmd.target;
+                        u.path = null;
+                    }
+                }
+                break;
+            }
+
             case 'PLACE_BUILDING': {
                 const bCfg = cfg.BUILDINGS[cmd.building];
                 if (!bCfg || !bCfg.cost) break;
@@ -616,6 +628,10 @@ CatWar.Game = (function () {
                     _autoAggro(u);
                     break;
 
+                case 'BUILDING':
+                    _handleBuilding(u, dt);
+                    break;
+
                 case 'LOADING':
                     _handleLoading(u, dt);
                     break;
@@ -722,7 +738,11 @@ CatWar.Game = (function () {
 
         const speed = u.speed * ts * dt;  // pixels per tick
 
-        if (dist <= speed) {
+        // Snap threshold: use Math.max(speed, 8) to prevent units from oscillating 
+        // due to push avoidance when they get close to their target.
+        const arrivalThreshold = Math.max(speed, 8);
+
+        if (dist <= arrivalThreshold) {
             u.x = targetWX;
             u.y = targetWY;
             u.pathIndex++;
@@ -1175,6 +1195,22 @@ CatWar.Game = (function () {
         for (const b of buildings) {
             if (b.faction !== u.faction) continue;
             if (b.constructionProgress !== undefined && b.constructionProgress < 1) continue;
+
+            // Only drop off at valid drop-off buildings
+            const bType = b.buildingType;
+            const isCastle = bType === 'CASTLE_KEEP';
+            const isDock = bType === 'DOCK';
+            const isLumber = bType === 'LUMBER_MILL';
+            const isQuarry = bType === 'STONE_QUARRY';
+
+            if (!isCastle && !isDock && !isLumber && !isQuarry) continue;
+
+            // Check if building accepts this resource
+            const rType = u.carryResource;
+            if (rType === 'WOOD' && !isCastle && !isDock && !isLumber) continue;
+            if (rType === 'STONE' && !isCastle && !isDock && !isQuarry) continue;
+            if (rType === 'GOLD' && !isCastle && !isDock) continue;
+
             const dist = Math.hypot((b.x + b.width / 2) - u.x, (b.y + b.height / 2) - u.y);
             if (dist < bestDist) {
                 bestDist = dist;
@@ -1255,6 +1291,67 @@ CatWar.Game = (function () {
             } else {
                 u.gatherTarget = null;
                 u.state = 'IDLE';
+            }
+        }
+    }
+
+    function _handleBuilding(u, dt) {
+        const b = u.buildTarget;
+        if (!b || !b.alive || b.constructionProgress >= 1.0) {
+            u.state = 'IDLE';
+            u.buildTarget = null;
+            u.path = null;
+            return;
+        }
+
+        const cfg = CFG();
+        const ts  = cfg.TILE_SIZE;
+        const map = CatWar.Map;
+        if (!map) return;
+
+        const bx = b.x + b.width / 2;
+        const by = b.y + b.height / 2;
+        const dist = Math.hypot(bx - u.x, by - u.y);
+        const buildRange = Math.max(b.width, b.height) * 0.5 + ts * 1.5;
+
+        if (dist > buildRange) {
+            // Pathfind to building
+            if (!u.path || u.path.length === 0) {
+                const uTile = map.worldToTile(u.x, u.y);
+                const bTile = map.worldToTile(bx, by);
+                const path = CatWar.Pathfinding.findPath(
+                    uTile.tx, uTile.ty, bTile.tx, bTile.ty,
+                    { ignoreThrottle: true, factionId: u.faction, isWaterOnly: u.isWaterOnly }
+                );
+                if (path && path.length > 0) {
+                    u.path = path;
+                    u.pathIndex = 0;
+                } else {
+                    // direct walk fallback
+                    const speed = u.speed * ts * dt;
+                    u.x += ((bx - u.x) / dist) * speed;
+                    u.y += ((by - u.y) / dist) * speed;
+                }
+            }
+            if (u.path && u.path.length > 0) {
+                _moveAlongPath(u, dt);
+            }
+        } else {
+            // Arrived: build!
+            u.path = null;
+            
+            // Build dust / sparks particles occasionally
+            if (Math.random() < 0.08) {
+                addParticle({
+                    x: u.x + (Math.random() - 0.5) * 10,
+                    y: u.y + (Math.random() - 0.5) * 10,
+                    vx: (Math.random() - 0.5) * 15,
+                    vy: -Math.random() * 15,
+                    type: 'dust',
+                    life: 0.5 + Math.random() * 0.3,
+                    alpha: 0.8,
+                    size: 2
+                });
             }
         }
     }
@@ -1444,9 +1541,27 @@ CatWar.Game = (function () {
 
             // Construction progress
             if (b.constructionProgress !== undefined && b.constructionProgress < 1.0) {
-                b.constructionProgress += dt / (b.constructionTime || 30);
-                if (b.constructionProgress >= 1.0) {
-                    b.constructionProgress = 1.0;
+                // Count builders currently working on this building
+                let buildersCount = 0;
+                for (const u of units) {
+                    if (u.alive && u.state === 'BUILDING' && u.buildTarget === b) {
+                        const ts = cfg.TILE_SIZE;
+                        const dist = Math.hypot((b.x + b.width / 2) - u.x, (b.y + b.height / 2) - u.y);
+                        const buildRange = Math.max(b.width, b.height) * 0.5 + ts * 1.5;
+                        if (dist <= buildRange) {
+                            buildersCount++;
+                        }
+                    }
+                }
+
+                const isAI = b.faction !== playerFaction;
+                if (buildersCount > 0 || isAI) {
+                    const speedMult = buildersCount > 0 ? (1 + (buildersCount - 1) * 0.5) : 1;
+                    b.constructionProgress += (dt / (b.constructionTime || 30)) * speedMult;
+                    if (b.constructionProgress >= 1.0) {
+                        b.constructionProgress = 1.0;
+                        b.isComplete = true;
+                    }
                 }
                 continue; // can't train while building
             }

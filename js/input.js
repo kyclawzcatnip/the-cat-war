@@ -399,13 +399,22 @@ CatWar.Input = (function () {
                 target: target
             });
         } else if (target && target.isBuilding && target.faction === game.playerFaction) {
-            // Right-click on own building → set rally point
-            _pushCommand({
-                type:     'SET_RALLY',
-                building: target,
-                x:        w.x,
-                y:        w.y
-            });
+            if (target.constructionProgress !== undefined && target.constructionProgress < 1.0 &&
+                selectedUnits.some(u => u.type === 'PEASANT' || u.type === 'HEAD_MINER')) {
+                _pushCommand({
+                    type:   'CONSTRUCT',
+                    units:  selectedUnits.filter(u => u.type === 'PEASANT' || u.type === 'HEAD_MINER'),
+                    target: target
+                });
+            } else {
+                // Right-click on own building → set rally point
+                _pushCommand({
+                    type:     'SET_RALLY',
+                    building: target,
+                    x:        w.x,
+                    y:        w.y
+                });
+            }
         } else if (target && target.isResource) {
             // Right-click on resource node → gather
             _pushCommand({
