@@ -251,7 +251,7 @@ CatWar.Config = (function () {
         BARRACKS: {
             hp:         800,
             cost:       { wood: 100 },
-            buildTime:  30,
+            buildTime:  15,
             size:       { w: 2, h: 2 },
             trains:     ['SWORDSCAT', 'SPEARCAT', 'KNIGHT'],
             visionRange: 6,
@@ -261,7 +261,7 @@ CatWar.Config = (function () {
         ARCHERY_RANGE: {
             hp:         600,
             cost:       { wood: 80 },
-            buildTime:  25,
+            buildTime:  12,
             size:       { w: 2, h: 2 },
             trains:     ['ARCHER', 'CROSSBOW', 'BIPLANE'],
             visionRange: 6,
@@ -271,7 +271,7 @@ CatWar.Config = (function () {
         BLACKSMITH: {
             hp:         500,
             cost:       { stone: 150 },
-            buildTime:  35,
+            buildTime:  18,
             size:       { w: 2, h: 2 },
             trains:     [],
             visionRange: 5,
@@ -281,7 +281,7 @@ CatWar.Config = (function () {
         STABLE: {
             hp:         700,
             cost:       { wood: 100 },
-            buildTime:  30,
+            buildTime:  15,
             size:       { w: 2, h: 2 },
             trains:     ['CAVALRY'],
             visionRange: 6,
@@ -291,7 +291,7 @@ CatWar.Config = (function () {
         SIEGE_WORKSHOP: {
             hp:         600,
             cost:       { wood: 150, stone: 100 },
-            buildTime:  40,
+            buildTime:  20,
             size:       { w: 3, h: 2 },
             trains:     ['CATAPULT'],
             visionRange: 5,
@@ -301,7 +301,7 @@ CatWar.Config = (function () {
         FARM: {
             hp:         300,
             cost:       { wood: 50 },
-            buildTime:  20,
+            buildTime:  10,
             size:       { w: 2, h: 2 },
             trains:     [],
             foodPerMin: 10,
@@ -312,7 +312,7 @@ CatWar.Config = (function () {
         LUMBER_MILL: {
             hp:         400,
             cost:       { wood: 30 },
-            buildTime:  20,
+            buildTime:  10,
             size:       { w: 2, h: 2 },
             trains:     [],
             gatherBonus: 0.2,   // +20% wood gather speed
@@ -323,7 +323,7 @@ CatWar.Config = (function () {
         STONE_QUARRY: {
             hp:         400,
             cost:       { wood: 50 },
-            buildTime:  25,
+            buildTime:  12,
             size:       { w: 2, h: 2 },
             trains:     [],
             gatherBonus: 0.2,   // +20% stone gather speed
@@ -334,7 +334,7 @@ CatWar.Config = (function () {
         WATCHTOWER: {
             hp:         350,
             cost:       { stone: 60 },
-            buildTime:  20,
+            buildTime:  10,
             size:       { w: 1, h: 1 },
             trains:     [],
             attackDamage: 5,
@@ -347,7 +347,7 @@ CatWar.Config = (function () {
         DOCK: {
             hp:         600,
             cost:       { wood: 150 },
-            buildTime:  25,
+            buildTime:  12,
             size:       { w: 2, h: 2 },
             trains:     ['TRANSPORT_SHIP', 'WARSHIP'],
             isDock:     true,
@@ -394,7 +394,7 @@ CatWar.Config = (function () {
         DRAWBRIDGE: {
             hp:         600,
             cost:       { wood: 80, stone: 40 },
-            buildTime:  15,
+            buildTime:  8,
             size:       { w: 1, h: 1 },
             trains:     [],
             visionRange: 4,

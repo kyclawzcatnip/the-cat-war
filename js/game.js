@@ -595,13 +595,40 @@ CatWar.Game = (function () {
 
                 // Automatically assign selected peasants/miners to construct this building
                 const inp = CatWar.Input;
+                let assignedBuilder = false;
                 if (inp && inp.selectedUnits) {
                     for (const u of inp.selectedUnits) {
                         if (u.alive && u.faction === playerFaction && (u.type === 'PEASANT' || u.type === 'HEAD_MINER')) {
                             u.state = 'BUILDING';
                             u.buildTarget = b;
                             u.path = null;
+                            u.gatherTarget = null;
+                            assignedBuilder = true;
                         }
+                    }
+                }
+
+                // If no peasant was selected, auto-find the nearest idle/gathering peasant
+                if (!assignedBuilder) {
+                    let bestDist = Infinity;
+                    let bestUnit = null;
+                    const bCenterX = b.x + b.width / 2;
+                    const bCenterY = b.y + b.height / 2;
+                    for (const u of units) {
+                        if (!u.alive || u.faction !== playerFaction) continue;
+                        if (u.type !== 'PEASANT' && u.type !== 'HEAD_MINER') continue;
+                        if (u.state === 'BUILDING') continue; // already building something
+                        const d = Math.hypot(u.x - bCenterX, u.y - bCenterY);
+                        if (d < bestDist) {
+                            bestDist = d;
+                            bestUnit = u;
+                        }
+                    }
+                    if (bestUnit) {
+                        bestUnit.state = 'BUILDING';
+                        bestUnit.buildTarget = b;
+                        bestUnit.path = null;
+                        bestUnit.gatherTarget = null;
                     }
                 }
                 break;
@@ -1426,7 +1453,7 @@ CatWar.Game = (function () {
         const bx = b.x + b.width / 2;
         const by = b.y + b.height / 2;
         const dist = Math.hypot(bx - u.x, by - u.y);
-        const buildRange = Math.max(b.width, b.height) * 0.5 + ts * 1.5;
+        const buildRange = Math.max(b.width, b.height) * 0.5 + ts * 2.5;
 
         if (dist > buildRange) {
             // Pathfind to building
@@ -1663,7 +1690,7 @@ CatWar.Game = (function () {
                     if (u.alive && u.state === 'BUILDING' && u.buildTarget === b) {
                         const ts = cfg.TILE_SIZE;
                         const dist = Math.hypot((b.x + b.width / 2) - u.x, (b.y + b.height / 2) - u.y);
-                        const buildRange = Math.max(b.width, b.height) * 0.5 + ts * 1.5;
+                        const buildRange = Math.max(b.width, b.height) * 0.5 + ts * 2.5;
                         if (dist <= buildRange) {
                             buildersCount++;
                         }
@@ -1672,7 +1699,7 @@ CatWar.Game = (function () {
 
                 const isAI = b.faction !== playerFaction;
                 if (buildersCount > 0 || isAI) {
-                    const speedMult = buildersCount > 0 ? (1 + (buildersCount - 1) * 0.5) : 1;
+                    const speedMult = buildersCount > 0 ? (1 + (buildersCount - 1) * 0.75) : 1;
                     b.constructionProgress += (dt / (b.constructionTime || 30)) * speedMult;
                     if (b.constructionProgress >= 1.0) {
                         b.constructionProgress = 1.0;
@@ -1975,6 +2002,8 @@ CatWar.Game = (function () {
                 if (isWorker) {
                     if (isPlayer) {
                         if (!u.minePreference || u.minePreference === 'none') continue;
+                        // Don't reassign builders
+                        if (u.buildTarget) continue;
                     }
                     // Auto-gather: find nearest resource within 12 tiles of Castle Keep
                     const castle = factionBuildings.find(b => b.buildingType === 'CASTLE_KEEP');
