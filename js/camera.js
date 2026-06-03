@@ -24,6 +24,10 @@ CatWar.Camera = (function () {
     let viewportW = 800;     // canvas pixel dimensions (updated on resize)
     let viewportH = 600;
 
+    // Minimap terrain cache
+    let minimapCacheCanvas = null;
+    let lastCachedMap      = null;
+
     // Middle-mouse panning
     let isPanning = false;
     let panStartScreenX = 0;
@@ -245,6 +249,39 @@ CatWar.Camera = (function () {
 
     // ─── Minimap ─────────────────────────────────────────────────────
 
+    function _rebuildMinimapCache(map) {
+        const cfg = CFG();
+        const mmSize = cfg.UI.MINIMAP_SIZE;
+
+        if (!minimapCacheCanvas) {
+            minimapCacheCanvas = document.createElement('canvas');
+        }
+        minimapCacheCanvas.width = mmSize;
+        minimapCacheCanvas.height = mmSize;
+
+        const cacheCtx = minimapCacheCanvas.getContext('2d');
+        const scaleX = mmSize / cfg.MAP_WIDTH;
+        const scaleY = mmSize / cfg.MAP_HEIGHT;
+
+        if (map && map.grid) {
+            for (let ty = 0; ty < cfg.MAP_HEIGHT; ty++) {
+                for (let tx = 0; tx < cfg.MAP_WIDTH; tx++) {
+                    const tileId  = map.grid[ty][tx];
+                    const tKey    = cfg.TERRAIN_BY_ID[tileId];
+                    const terrain = cfg.TERRAIN[tKey];
+
+                    cacheCtx.fillStyle = terrain ? terrain.color : '#000';
+                    cacheCtx.fillRect(
+                        tx * scaleX,
+                        ty * scaleY,
+                        Math.ceil(scaleX),
+                        Math.ceil(scaleY)
+                    );
+                }
+            }
+        }
+    }
+
     /**
      * Render the minimap onto the given context.
      * @param {CanvasRenderingContext2D} ctx  The HUD / overlay context
@@ -269,28 +306,13 @@ CatWar.Camera = (function () {
         ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
         ctx.fillRect(mmX - 2, mmY - 2, mmSize + 4, mmSize + 4);
 
-        // Terrain tiles
+        // Terrain tiles (cached to avoid 6,400 fillRect calls per frame)
         if (map && map.grid) {
-            for (let ty = 0; ty < cfg.MAP_HEIGHT; ty++) {
-                for (let tx = 0; tx < cfg.MAP_WIDTH; tx++) {
-                    const tileId  = map.grid[ty][tx];
-                    const tKey    = cfg.TERRAIN_BY_ID[tileId];
-                    const terrain = cfg.TERRAIN[tKey];
-
-                    // Apply fog dimming
-                    let alpha = 1;
-
-                    ctx.globalAlpha = alpha;
-                    ctx.fillStyle = terrain ? terrain.color : '#000';
-                    ctx.fillRect(
-                        mmX + tx * scaleX,
-                        mmY + ty * scaleY,
-                        Math.ceil(scaleX),
-                        Math.ceil(scaleY)
-                    );
-                }
+            if (!minimapCacheCanvas || lastCachedMap !== map) {
+                lastCachedMap = map;
+                _rebuildMinimapCache(map);
             }
-            ctx.globalAlpha = 1;
+            ctx.drawImage(minimapCacheCanvas, mmX, mmY);
         }
 
         // Buildings

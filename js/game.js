@@ -929,6 +929,11 @@ CatWar.Game = (function () {
     }
 
     function _autoAggro(u) {
+        // Throttle check: run every 10 frames to optimize performance on older computers
+        if (u.aggroTick === undefined) u.aggroTick = Math.floor(Math.random() * 10);
+        u.aggroTick++;
+        if (u.aggroTick % 10 !== 0) return;
+
         const cfg = CFG();
         const range = cfg.COMBAT.AGGRO_RANGE * cfg.TILE_SIZE;
 

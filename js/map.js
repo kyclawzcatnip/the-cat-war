@@ -758,48 +758,7 @@ CatWar.Map = (function () {
      * @param {string} faction   Faction ID to update visibility for
      */
     function updateVisibility(entities, faction) {
-        const cfg = CFG();
-        const W = cfg.MAP_WIDTH;
-        const H = cfg.MAP_HEIGHT;
-        const fGrid = fogGrids[faction];
-        if (!fGrid) return;
-
-        // Step 1: Demote visible → explored
-        for (let y = 0; y < H; y++) {
-            for (let x = 0; x < W; x++) {
-                if (fGrid[y][x] === cfg.FOG.VISIBLE) {
-                    fGrid[y][x] = cfg.FOG.EXPLORED;
-                }
-            }
-        }
-
-        // Step 2: Apply building claimed tiles
-        const buildings = entities.filter(e => e.isBuilding);
-        updateClaimedTiles(buildings, faction);
-
-        // Step 3: Apply unit vision
-        for (const ent of entities) {
-            if (ent.faction !== faction) continue;
-            if (ent.isBuilding) continue; // buildings handled via claimed tiles
-            if (!ent.alive) continue;
-
-            const tile = worldToTile(ent.x, ent.y);
-            // Use unit-specific vision range, or unit config vision, or default 6
-            const uCfg = cfg.UNITS[ent.type];
-            const vision = ent.visionRange || (uCfg && uCfg.visionRange) || 6;
-
-            for (let dy = -vision; dy <= vision; dy++) {
-                for (let dx = -vision; dx <= vision; dx++) {
-                    const tx = tile.tx + dx;
-                    const ty = tile.ty + dy;
-                    if (tx < 0 || tx >= W || ty < 0 || ty >= H) continue;
-                    if (dx * dx + dy * dy <= vision * vision) {
-                        fGrid[ty][tx] = cfg.FOG.VISIBLE;
-                    }
-                }
-            }
-        }
-
+        return; // Fog of war removed!
     }
 
     /** Reveal entire map for a faction (debug / cheat). */
