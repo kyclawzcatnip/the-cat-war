@@ -21,7 +21,7 @@ CatWar.Particles = (function () {
    *  PARTICLE POOL
    * ====================================================================== */
 
-  var MAX_PARTICLES = 600;
+  var MAX_PARTICLES = 400;
   var particles = [];
 
   function Particle(x, y, vx, vy, life, color, size, shape, gravity, fadeStart) {
@@ -414,10 +414,12 @@ CatWar.Particles = (function () {
    * ====================================================================== */
 
   function update(dt) {
+    // Swap-and-pop removal: O(1) per dead particle instead of O(n) splice
     for (var i = particles.length - 1; i >= 0; i--) {
       particles[i].update(dt);
       if (!particles[i].alive) {
-        particles.splice(i, 1);
+        particles[i] = particles[particles.length - 1];
+        particles.pop();
       }
     }
   }

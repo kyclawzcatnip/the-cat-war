@@ -62,6 +62,56 @@ CatWar.Game = (function () {
     let _nextId = 1;
     function _uid() { return _nextId++; }
 
+    // ─── Spatial grid for O(1) neighbor lookups ─────────────────
+    const GRID_CELL_SIZE = 64; // 2 tiles = 64px
+    let spatialGrid = null;
+    let gridCols = 0;
+    let gridRows = 0;
+
+    function _rebuildSpatialGrid() {
+        const cfg = CFG();
+        const ww = cfg.MAP_WIDTH * cfg.TILE_SIZE;
+        const wh = cfg.MAP_HEIGHT * cfg.TILE_SIZE;
+        gridCols = Math.ceil(ww / GRID_CELL_SIZE);
+        gridRows = Math.ceil(wh / GRID_CELL_SIZE);
+        const total = gridCols * gridRows;
+
+        if (!spatialGrid || spatialGrid.length !== total) {
+            spatialGrid = new Array(total);
+        }
+        for (let i = 0; i < total; i++) {
+            if (spatialGrid[i]) spatialGrid[i].length = 0;
+            else spatialGrid[i] = [];
+        }
+
+        for (let i = 0; i < units.length; i++) {
+            const u = units[i];
+            if (!u.alive || u.hp <= 0) continue;
+            const cx = Math.min(gridCols - 1, Math.max(0, Math.floor(u.x / GRID_CELL_SIZE)));
+            const cy = Math.min(gridRows - 1, Math.max(0, Math.floor(u.y / GRID_CELL_SIZE)));
+            spatialGrid[cy * gridCols + cx].push(u);
+        }
+    }
+
+    function _getNearbyUnits(wx, wy, radius) {
+        if (!spatialGrid) return units; // fallback
+        const result = [];
+        const minCX = Math.max(0, Math.floor((wx - radius) / GRID_CELL_SIZE));
+        const maxCX = Math.min(gridCols - 1, Math.floor((wx + radius) / GRID_CELL_SIZE));
+        const minCY = Math.max(0, Math.floor((wy - radius) / GRID_CELL_SIZE));
+        const maxCY = Math.min(gridRows - 1, Math.floor((wy + radius) / GRID_CELL_SIZE));
+
+        for (let cy = minCY; cy <= maxCY; cy++) {
+            for (let cx = minCX; cx <= maxCX; cx++) {
+                const cell = spatialGrid[cy * gridCols + cx];
+                for (let i = 0; i < cell.length; i++) {
+                    result.push(cell[i]);
+                }
+            }
+        }
+        return result;
+    }
+
     // ═══════════════════════════════════════════════════════════════
     //  Public start / init
     // ═══════════════════════════════════════════════════════════════
@@ -335,15 +385,9 @@ CatWar.Game = (function () {
             _checkScoutCastleDiscovery();
         }
 
-        // 9. Update fog of war (every ~10 frames to save perf)
-        if (frameCount % 10 === 0) {
-            const allEntities = [...units, ...buildings];
-            // Update fog for ALL factions (AI needs its own fog for decision-making)
-            for (const fk of activeFactions) {
-                CatWar.Map.updateVisibility(allEntities, fk);
-            }
-            CatWar.Renderer.invalidateFog();
-        }
+        // 9. Fog of war computation DISABLED for performance
+        //    (fog rendering is already disabled in renderer)
+        // if (frameCount % 10 === 0) { ... }
 
         // 10. Recalculate population
         _recalcPopulation();
@@ -584,6 +628,9 @@ CatWar.Game = (function () {
         const ts  = cfg.TILE_SIZE;
         const map = CatWar.Map;
 
+        // Rebuild spatial grid once per frame for O(1) neighbor lookups
+        _rebuildSpatialGrid();
+
         for (let i = units.length - 1; i >= 0; i--) {
             const u = units[i];
 
@@ -716,11 +763,13 @@ CatWar.Game = (function () {
             let pushY = 0;
             let overlapCount = 0;
 
-            for (let j = 0; j < units.length; j++) {
-                if (i === j) continue;
-                const u2 = units[j];
+            // Use spatial grid for O(1) neighbor lookups instead of O(n)
+            const nearby = _getNearbyUnits(u.x, u.y, radius);
+            for (let j = 0; j < nearby.length; j++) {
+                const u2 = nearby[j];
+                if (u === u2) continue;
                 if (!u2.alive || u2.hp <= 0) continue;
-                if (u2.isFlyer) continue; // ignore flyers in the air
+                if (u2.isFlyer) continue;
 
                 const dx = u.x - u2.x;
                 const dy = u.y - u2.y;
@@ -937,7 +986,10 @@ CatWar.Game = (function () {
         const cfg = CFG();
         const range = cfg.COMBAT.AGGRO_RANGE * cfg.TILE_SIZE;
 
-        for (const enemy of units) {
+        // Use spatial grid for O(1) neighbor lookup instead of scanning all units
+        const nearby = _getNearbyUnits(u.x, u.y, range);
+        for (let i = 0; i < nearby.length; i++) {
+            const enemy = nearby[i];
             if (enemy.faction === u.faction) continue;
             if (!enemy.alive) continue;
             const dist = Math.hypot(enemy.x - u.x, enemy.y - u.y);
@@ -1197,6 +1249,11 @@ CatWar.Game = (function () {
                 const harvested = map.harvestResource(tx, ty, gatherAmt);
                 u.carrying      = (u.carrying || 0) + harvested;
                 u.carryResource = rd.resource;
+
+                // Invalidate terrain cache when resources are harvested
+                if (rd.amount <= 0 && CatWar.Renderer.invalidateTerrainCache) {
+                    CatWar.Renderer.invalidateTerrainCache();
+                }
 
                 // Spark particle
                 if (Math.random() < 0.1) {
@@ -1593,6 +1650,8 @@ CatWar.Game = (function () {
                     map.clearBuilding(tx, ty, bCfgD.size.w, bCfgD.size.h);
                 }
                 buildings.splice(i, 1);
+                // Invalidate terrain cache after building removed
+                if (CatWar.Renderer.invalidateTerrainCache) CatWar.Renderer.invalidateTerrainCache();
                 continue;
             }
 
@@ -2285,6 +2344,9 @@ CatWar.Game = (function () {
         };
 
         buildings.push(building);
+
+        // Invalidate terrain cache after building placed
+        if (CatWar.Renderer.invalidateTerrainCache) CatWar.Renderer.invalidateTerrainCache();
 
         // Mark tiles as occupied so pathfinding avoids them
         const map = CatWar.Map;

@@ -21,6 +21,11 @@ CatWar.Renderer = (function () {
     let fogCtx    = null;
     let fogDirty  = true;
 
+    // Off-screen terrain cache (rebuilt only when terrain changes)
+    let _terrainCanvas = null;
+    let _terrainCtx    = null;
+    let _terrainDirty  = true;
+
     // ═══════════════════════════════════════════════════════════════
     //  Initialisation
     // ═══════════════════════════════════════════════════════════════
@@ -48,6 +53,156 @@ CatWar.Renderer = (function () {
     /** Mark fog as needing a redraw (call after visibility updates). */
     function invalidateFog() {
         fogDirty = true;
+    }
+
+    /** Mark terrain cache as needing rebuild (call after building placed, resource depleted, etc.). */
+    function invalidateTerrainCache() {
+        _terrainDirty = true;
+    }
+
+    /**
+     * Rebuild the offscreen terrain cache.
+     * Draws ALL terrain tiles, decorations, and resource nodes ONCE.
+     * This eliminates ~2000+ complex sprite draw calls per frame.
+     */
+    function _rebuildTerrainCache(map, cfg) {
+        const ts = cfg.TILE_SIZE;
+        const w  = cfg.MAP_WIDTH  * ts;
+        const h  = cfg.MAP_HEIGHT * ts;
+
+        if (!_terrainCanvas) {
+            _terrainCanvas = document.createElement('canvas');
+            _terrainCtx    = _terrainCanvas.getContext('2d');
+            _terrainCtx.imageSmoothingEnabled = false;
+        }
+        _terrainCanvas.width  = w;
+        _terrainCanvas.height = h;
+
+        const tctx = _terrainCtx;
+
+        // Draw all terrain tiles
+        for (let ty = 0; ty < cfg.MAP_HEIGHT; ty++) {
+            for (let tx = 0; tx < cfg.MAP_WIDTH; tx++) {
+                const tileId = map.grid[ty][tx];
+                const tKey   = cfg.TERRAIN_BY_ID[tileId];
+                if (!tKey) continue;
+
+                if (CatWar.Sprites && CatWar.Sprites.drawTile) {
+                    CatWar.Sprites.drawTile(tctx, tx * ts, ty * ts, tKey, tx + ty, 0);
+                } else {
+                    const terrain = cfg.TERRAIN[tKey];
+                    if (!terrain) continue;
+                    tctx.fillStyle = terrain.color;
+                    tctx.fillRect(tx * ts, ty * ts, ts, ts);
+                }
+            }
+        }
+
+        // Draw decorations onto cache
+        if (map.decorations) {
+            for (const dec of map.decorations) {
+                const wx = dec.tx * ts + ts / 2 + dec.offsetX;
+                const wy = dec.ty * ts + ts / 2 + dec.offsetY;
+
+                tctx.save();
+                tctx.translate(wx, wy);
+                tctx.scale(dec.scale, dec.scale);
+
+                switch (dec.type) {
+                    case 'grass_tuft':
+                        tctx.strokeStyle = '#5a9e32';
+                        tctx.lineWidth = 1;
+                        tctx.beginPath();
+                        tctx.moveTo(-2, 2); tctx.lineTo(0, -4);
+                        tctx.moveTo(0, 2);  tctx.lineTo(1, -5);
+                        tctx.moveTo(2, 2);  tctx.lineTo(3, -3);
+                        tctx.stroke();
+                        break;
+                    case 'flower':
+                        tctx.fillStyle = dec.color || '#ff69b4';
+                        tctx.beginPath();
+                        tctx.arc(0, 0, 2, 0, Math.PI * 2);
+                        tctx.fill();
+                        tctx.fillStyle = '#ffff00';
+                        tctx.beginPath();
+                        tctx.arc(0, 0, 0.8, 0, Math.PI * 2);
+                        tctx.fill();
+                        break;
+                    case 'small_rock':
+                        tctx.fillStyle = '#999';
+                        tctx.beginPath();
+                        tctx.ellipse(0, 0, 3, 2, 0, 0, Math.PI * 2);
+                        tctx.fill();
+                        tctx.strokeStyle = '#777';
+                        tctx.lineWidth = 0.5;
+                        tctx.stroke();
+                        break;
+                }
+                tctx.restore();
+            }
+        }
+
+        // Draw resource nodes onto cache
+        const GOLD_ID   = cfg.TERRAIN.GOLD_DEPOSIT ? cfg.TERRAIN.GOLD_DEPOSIT.id : -1;
+        const STONE_ID  = cfg.TERRAIN.STONE_DEPOSIT ? cfg.TERRAIN.STONE_DEPOSIT.id : -1;
+        const FOREST_ID = cfg.TERRAIN.FOREST ? cfg.TERRAIN.FOREST.id : -1;
+
+        for (let ty = 0; ty < cfg.MAP_HEIGHT; ty++) {
+            for (let tx = 0; tx < cfg.MAP_WIDTH; tx++) {
+                const tileId = map.grid[ty][tx];
+                if (tileId !== GOLD_ID && tileId !== STONE_ID && tileId !== FOREST_ID) continue;
+
+                const rd = map.resourceData ? map.resourceData[ty][tx] : null;
+                const wx = tx * ts;
+                const wy = ty * ts;
+
+                if (CatWar.Sprites && CatWar.Sprites.drawResourceNode) {
+                    const typeKey = tileId === GOLD_ID ? 'GOLD' : (tileId === STONE_ID ? 'STONE' : 'WOOD');
+                    const remaining = rd ? (rd.amount / rd.maxAmount) : 1.0;
+                    const richness = rd ? rd.richness : 1.0;
+                    CatWar.Sprites.drawResourceNode(tctx, wx + ts / 2, wy + ts / 2, typeKey, remaining, 0, richness);
+                } else {
+                    if (tileId === FOREST_ID) {
+                        _drawTreeCached(tctx, wx, wy, ts, rd);
+                    } else if (tileId === GOLD_ID) {
+                        _drawGoldCached(tctx, wx, wy, ts, rd);
+                    } else if (tileId === STONE_ID) {
+                        _drawStoneCached(tctx, wx, wy, ts, rd);
+                    }
+                }
+            }
+        }
+
+        _terrainDirty = false;
+    }
+
+    // Simplified resource drawing for cache (no animation)
+    function _drawTreeCached(tctx, wx, wy, ts, rd) {
+        const cx = wx + ts / 2, cy = wy + ts / 2;
+        tctx.fillStyle = '#5a3a1a';
+        tctx.fillRect(cx - 2, cy, 4, ts / 3);
+        const radius = rd && rd.richness > 1 ? ts * 0.45 : ts * 0.35;
+        tctx.fillStyle = rd && rd.richness > 1 ? '#1a6b1a' : '#2d5a1e';
+        tctx.beginPath(); tctx.arc(cx, cy - 2, radius, 0, Math.PI * 2); tctx.fill();
+    }
+    function _drawGoldCached(tctx, wx, wy, ts, rd) {
+        const cx = wx + ts / 2, cy = wy + ts / 2;
+        tctx.fillStyle = '#8a7a5a';
+        tctx.beginPath();
+        tctx.moveTo(cx - 8, cy + 6); tctx.lineTo(cx - 4, cy - 6);
+        tctx.lineTo(cx + 5, cy - 5); tctx.lineTo(cx + 9, cy + 5);
+        tctx.closePath(); tctx.fill();
+        tctx.fillStyle = rd && rd.richness > 1 ? '#FFD700' : '#DAA520';
+        tctx.beginPath(); tctx.arc(cx - 2, cy - 1, 3, 0, Math.PI * 2); tctx.fill();
+        tctx.beginPath(); tctx.arc(cx + 3, cy + 1, 2.5, 0, Math.PI * 2); tctx.fill();
+    }
+    function _drawStoneCached(tctx, wx, wy, ts, rd) {
+        const cx = wx + ts / 2, cy = wy + ts / 2;
+        tctx.fillStyle = '#7a7a7a';
+        tctx.beginPath();
+        tctx.moveTo(cx - 7, cy + 5); tctx.lineTo(cx - 3, cy - 5);
+        tctx.lineTo(cx + 6, cy - 4); tctx.lineTo(cx + 8, cy + 4);
+        tctx.closePath(); tctx.fill();
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -78,14 +233,13 @@ CatWar.Renderer = (function () {
         const visRange = cam.getVisibleTileRange();
         const ts = cfg.TILE_SIZE;
 
-        // Layer 1: Terrain tiles
-        _renderTerrain(map, visRange, ts, cfg);
-
-        // Layer 2: Terrain decorations
-        _renderDecorations(map, visRange, ts);
-
-        // Layer 3: Resource nodes
-        _renderResourceNodes(map, visRange, ts, cfg);
+        // Layers 1-3: Terrain + Decorations + Resources (cached offscreen)
+        if (_terrainDirty || !_terrainCanvas) {
+            _rebuildTerrainCache(map, cfg);
+        }
+        if (_terrainCanvas) {
+            ctx.drawImage(_terrainCanvas, 0, 0);
+        }
 
         // Layer 4-5: Building shadows + Buildings (sorted by Y)
         if (gameState && gameState.buildings) {
@@ -2197,6 +2351,7 @@ CatWar.Renderer = (function () {
         init,
         render,
         invalidateFog,
+        invalidateTerrainCache,
         hotbarHandleHover,
         hotbarHandleClick,
         isOverHotbar,
