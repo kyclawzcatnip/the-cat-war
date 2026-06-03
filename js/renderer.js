@@ -1347,11 +1347,34 @@ CatWar.Renderer = (function () {
             if (_isPointInRect(screenX, screenY, btn.x, btn.y, btn.w, btn.h)) {
                 const inp = CatWar.Input;
                 if (inp && inp.selectedBuilding) {
+                    const cfg = CatWar.Config;
+                    const game = CatWar.Game;
+                    const uCfg = cfg ? cfg.UNITS[btn.unitType] : null;
+                    const playerRes = game ? game.playerResources : null;
+                    
                     const result = CatWar.Game.trainUnit(inp.selectedBuilding, btn.unitType);
                     if (result) {
                         console.log('[UI] Queued training:', btn.unitType);
+                        if (CatWar.Audio) {
+                            CatWar.Audio.playSound('buttonClick');
+                        }
                     } else {
                         console.log('[UI] Cannot train:', btn.unitType, '(cost/pop?)');
+                        let errorMsg = "Cannot train!";
+                        if (uCfg && playerRes && game) {
+                            if (!_canAffordBuilding(playerRes, uCfg.cost)) {
+                                errorMsg = "Not enough resources!";
+                            } else if (game.population + (uCfg.popCost || 1) > game.populationCap) {
+                                errorMsg = "Population limit reached!";
+                            }
+                        }
+                        if (CatWar.UI && CatWar.UI.addFloatingText) {
+                            const b = inp.selectedBuilding;
+                            CatWar.UI.addFloatingText(b.x + b.width / 2, b.y, errorMsg, "#ff3333", 1.5);
+                        }
+                        if (CatWar.Audio) {
+                            CatWar.Audio.playSound('errorSound');
+                        }
                     }
                 }
                 return true;
@@ -1847,7 +1870,7 @@ CatWar.Renderer = (function () {
         const buildings = cfg.BUILDINGS;
         const keys = Object.keys(buildings).filter(k => k !== 'CASTLE_KEEP');
 
-        const cols = 2;
+        const cols = 3;
         const btnSize = 56;
         const btnPad = 6;
         const panelPad = 10;

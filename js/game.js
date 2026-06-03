@@ -519,18 +519,47 @@ CatWar.Game = (function () {
                 const bCfg = cfg.BUILDINGS[cmd.building];
                 if (!bCfg || !bCfg.cost) break;
 
+                const ts = cfg.TILE_SIZE;
+
                 // Check resources
                 const res = factionResources[playerFaction];
-                if (!_canAfford(res, bCfg.cost)) break;
+                if (!_canAfford(res, bCfg.cost)) {
+                    if (CatWar.UI && CatWar.UI.addFloatingText) {
+                        const inp = CatWar.Input;
+                        const wx = inp ? inp.worldX : cmd.tileX * ts;
+                        const wy = inp ? inp.worldY : cmd.tileY * ts;
+                        CatWar.UI.addFloatingText(wx, wy, "Not enough resources!", "#ff3333", 1.5);
+                    }
+                    if (CatWar.Audio) {
+                        CatWar.Audio.playSound('errorSound');
+                    }
+                    break;
+                }
 
                 // Deduct cost
                 _deductCost(res, bCfg.cost);
 
-                const ts = cfg.TILE_SIZE;
                 const b = _createBuilding(cmd.building, playerFaction,
                                            cmd.tileX * ts, cmd.tileY * ts);
                 b.constructionProgress = 0;
                 b.constructionTime     = bCfg.buildTime;
+
+                // Play placement sound
+                if (CatWar.Audio) {
+                    CatWar.Audio.playSound('buildingPlace', b.x + b.width / 2, b.y + b.height / 2);
+                }
+
+                // Automatically assign selected peasants/miners to construct this building
+                const inp = CatWar.Input;
+                if (inp && inp.selectedUnits) {
+                    for (const u of inp.selectedUnits) {
+                        if (u.alive && u.faction === playerFaction && (u.type === 'PEASANT' || u.type === 'HEAD_MINER')) {
+                            u.state = 'BUILDING';
+                            u.buildTarget = b;
+                            u.path = null;
+                        }
+                    }
+                }
                 break;
             }
 
@@ -578,6 +607,29 @@ CatWar.Game = (function () {
                 }
                 units.splice(i, 1);
                 continue;
+            }
+
+            // Update unit animation timer and frame
+            if (u.animTimer === undefined) u.animTimer = 0;
+            if (u.animFrame === undefined) u.animFrame = 0;
+
+            const isMoving = u.state === 'MOVING' || u.state === 'ATTACK_MOVING' || (u.path && u.path.length > 0);
+            const isAction = u.state === 'ATTACKING' || u.state === 'GATHERING' || u.state === 'BUILDING';
+
+            let animSpeed = 0.15; // default seconds per frame
+            if (isMoving) {
+                animSpeed = 0.08; // leg speed when moving
+            } else if (isAction) {
+                animSpeed = 0.12; // work speed when performing tasks
+            }
+
+            u.animTimer += dt;
+            if (u.animTimer >= animSpeed) {
+                u.animTimer = 0;
+                u.animFrame = (u.animFrame + 1) % 4; // cycle 4 frames (0 to 3)
+            }
+            if (!isMoving && !isAction) {
+                u.animFrame = 0; // reset to frame 0 when idle
             }
 
             // Attack cooldown

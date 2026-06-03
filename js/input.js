@@ -475,7 +475,6 @@ CatWar.Input = (function () {
         buildMode  = true;
         buildType  = buildingType;
         buildValid = false;
-        deselectAll();
     }
 
     function cancelBuildMode() {
